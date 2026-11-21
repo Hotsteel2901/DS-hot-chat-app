@@ -1,0 +1,163 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: Bump dependencies
+
+# 只手动触发：不做定时任务，也不随 push 运行。
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "只计算版本差异，不写文件、不建 PR"
+        type: boolean
+        default: false
+      include_gradle:
+        description: "同时升级 Gradle wrapper"
+        type: boolean
+        default: true
+      include_actions:
+        description: "同时升级工作流里用到的 GitHub Actions"
+        type: boolean
+        default: true
+      only:
+        description: "只升级指定组件，逗号分隔（如 okhttp,coil），留空表示全部"
+        type: string
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: bump-dependencies
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Resolve latest and open PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: 解析最新稳定版
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ONLY: ${{ inputs.only }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          WITH_GRADLE: ${{ inputs.include_gradle }}
+          WITH_ACTIONS: ${{ inputs.include_actions }}
+        run: |
+          set -euo pipefail
+          ARGS=()
+          [ "$WITH_GRADLE" = "true" ]  || ARGS+=(--no-gradle)
+          [ "$WITH_ACTIONS" = "true" ] || ARGS+=(--no-actions)
+          [ -n "$ONLY" ] && ARGS+=(--only "$ONLY")
+          [ "$DRY_RUN" = "true" ] && ARGS+=(--dry-run)
+          python3 scripts/bump-deps.py "${ARGS[@]}" | tee bump.log
+
+      - name: 展示差异
+        run: |
+          echo "### 版本目录差异" >> "$GITHUB_STEP_SUMMARY"
+          git --no-pager diff --stat || true
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "没有可升级的组件。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff -- gradle/libs.versions.toml >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+        id: diff
+
+      - name: 编译与测试（失败不阻断，结果写进 PR）
+        id: build
+        if: ${{ inputs.dry_run != true && steps.diff.outputs.changed == 'true' }}
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --stacktrace :app:assembleDebug :app:testDebugUnitTest 2>&1 | tee build.log
+          tail -n 80 build.log > build-tail.log
+
+      - name: 判断构建结果
+        id: verdict
+        if: ${{ inputs.dry_run != true && steps.diff.outputs.changed == 'true' }}
+        run: |
+          if [ "${{ steps.build.outcome }}" = "success" ]; then
+            echo "status=✅ 编译与单元测试通过" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=⚠️ 依赖已升级，但编译或测试未通过，需要人工跟进" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 创建或更新 PR
+        if: ${{ inputs.dry_run != true && steps.diff.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STATUS: ${{ steps.verdict.outputs.status }}
+        run: |
+          set -euo pipefail
+          BRANCH="chore/bump-dependencies"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add -A
+          git commit -m "chore(deps): 升级全部组件到最新稳定版"
+          git push -f origin "HEAD:$BRANCH"
+
+          {
+            echo "$STATUS"
+            echo
+            echo "由手动触发的 \`Bump dependencies\` 工作流生成，覆盖 Gradle wrapper、AGP、Kotlin、Compose BOM、AndroidX 与全部第三方库。"
+            echo
+            sed -n '1,40p' bump.log
+            if [ -f build-tail.log ]; then
+              echo
+              echo "<details><summary>构建日志尾部</summary>"
+              echo
+              echo '```'
+              cat build-tail.log
+              echo '```'
+              echo
+              echo "</details>"
+            fi
+          } > pr-body.md
+
+          if gh pr view "$BRANCH" >/dev/null 2>&1; then
+            gh pr edit "$BRANCH" --title "chore(deps): 升级全部组件到最新稳定版" --body-file pr-body.md
+            echo "已更新现有 PR。" >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh pr create \
+              --title "chore(deps): 升级全部组件到最新稳定版" \
+              --body-file pr-body.md \
+              --base "${{ github.event.repository.default_branch }}" \
+              --head "$BRANCH" \
+              --label dependencies || \
+            gh pr create \
+              --title "chore(deps): 升级全部组件到最新稳定版" \
+              --body-file pr-body.md \
+              --base "${{ github.event.repository.default_branch }}" \
+              --head "$BRANCH"
+            echo "已创建 PR。" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: 无变更
+        if: ${{ steps.diff.outputs.changed != 'true' }}
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "试运行结束：只计算了版本差异，未写入任何文件。"
+          else
+            echo "所有组件已是最新，未创建 PR。"
+          fi
