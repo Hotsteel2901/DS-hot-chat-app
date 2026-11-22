@@ -9,15 +9,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -28,36 +25,40 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
-import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
@@ -75,15 +76,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,6 +101,11 @@ import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.sin
 
+/**
+ * 输入区，版式对齐官方网页端：
+ * 一个大圆角输入卡片，上半部分是多行文本框，下半部分是工具栏——
+ * 左侧「深度思考」「联网搜索」两个胶囊开关，右侧附件、语音与发送按钮。
+ */
 @Composable
 fun Composer(
     text: String,
@@ -111,6 +122,12 @@ fun Composer(
     onTranscribe: (File) -> Unit,
     allowAttach: Boolean = true,
     allowVoice: Boolean = true,
+    thinkActive: Boolean = true,
+    thinkLabel: String = "深度思考",
+    onToggleThink: () -> Unit = {},
+    webActive: Boolean = true,
+    onToggleWeb: () -> Unit = {},
+    onHint: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val p = LocalPalette.current
@@ -124,12 +141,13 @@ fun Composer(
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (!granted) showPermissionDialog = true
+        if (granted) onHint("已获得麦克风权限，按住麦克风说话")
+        else showPermissionDialog = true
     }
 
     LaunchedEffect(text) {
         if (text != field.text) {
-            field = TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
+            field = TextFieldValue(text, TextRange(text.length))
         }
     }
 
@@ -145,11 +163,21 @@ fun Composer(
 
     fun endRecording() {
         if (!recorder.recording) return
+        // 轻点一下就松开时录到的只是噪声，直接丢弃并提示用法，而不是把空音频送去识别
+        val tooShort = recorder.elapsedMs < 700
         scope.launch {
             val file = recorder.stop()
-            if (file != null) onTranscribe(file)
+            when {
+                tooShort -> {
+                    file?.delete()
+                    onHint("按住麦克风说话，松开后自动识别")
+                }
+                file != null -> onTranscribe(file)
+            }
         }
     }
+
+    val canSend = !streaming && (field.text.isNotBlank() || attachments.any { it.status == "ready" })
 
     Column(
         modifier = modifier
@@ -159,27 +187,8 @@ fun Composer(
                     .union(WindowInsets.ime)
                     .only(WindowInsetsSides.Bottom)
             ),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        AnimatedVisibility(
-            visible = attachments.isNotEmpty(),
-            enter = expandVertically(tween(200)) + fadeIn(tween(160)),
-            exit = shrinkVertically(tween(160)) + fadeOut(tween(120)),
-        ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                attachments.take(4).forEach { att ->
-                    AttachmentChip(att) { onRemove(att.id) }
-                }
-                if (attachments.size > 4) {
-                    Text("+${attachments.size - 4}", color = p.dim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp))
-                }
-            }
-        }
-
         AnimatedVisibility(
             visible = recorder.recording,
             enter = expandVertically(tween(180)) + fadeIn(tween(140)),
@@ -188,53 +197,35 @@ fun Composer(
             RecordingPanel(recorder.amplitude, recorder.elapsedMs)
         }
 
-        Row(
-            modifier = Modifier
+        val shape = RoundedCornerShape(24.dp)
+        Column(
+            Modifier
+                .widthIn(max = 760.dp)
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(26.dp))
-                .background(p.surface.copy(alpha = 0.94f))
-                .border(1.dp, p.border, RoundedCornerShape(26.dp))
-                .padding(start = 4.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-            verticalAlignment = Alignment.Bottom,
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+                .then(
+                    if (p.isDark) Modifier
+                    else Modifier.shadow(10.dp, shape, ambientColor = Color(0x14000000), spotColor = Color(0x1A1F3A8A))
+                )
+                .clip(shape)
+                .background(p.surface)
+                .border(1.dp, p.border, shape),
         ) {
-            if (allowAttach) Box {
-                Tappable(
+            AnimatedVisibility(
+                visible = attachments.isNotEmpty(),
+                enter = expandVertically(tween(200)) + fadeIn(tween(160)),
+                exit = shrinkVertically(tween(160)) + fadeOut(tween(120)),
+            ) {
+                Row(
                     Modifier
-                        .size(38.dp)
-                        .clip(CircleShape),
-                    onClick = { attachMenu = true },
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(start = 12.dp, end = 12.dp, top = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(
-                        Icons.Rounded.Add,
-                        contentDescription = "添加附件",
-                        tint = p.dim,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(22.dp),
-                    )
-                }
-                DropdownMenu(
-                    expanded = attachMenu,
-                    onDismissRequest = { attachMenu = false },
-                    containerColor = p.surfaceHigh,
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("上传文件") },
-                        leadingIcon = { Icon(Icons.Rounded.AttachFile, null, tint = p.dim) },
-                        onClick = {
-                            attachMenu = false
-                            onPickFile()
-                        },
-                    )
-                    DropdownMenuItem(
-                        text = { Text("上传图片") },
-                        leadingIcon = { Icon(Icons.Rounded.Image, null, tint = p.dim) },
-                        onClick = {
-                            attachMenu = false
-                            onPickImage()
-                        },
-                    )
+                    attachments.forEach { att ->
+                        AttachmentChip(att) { onRemove(att.id) }
+                    }
                 }
             }
 
@@ -245,20 +236,24 @@ fun Composer(
                     onTextChange(it.text)
                 },
                 modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 38.dp, max = 148.dp)
-                    .padding(horizontal = 6.dp, vertical = 9.dp),
-                textStyle = TextStyle(color = p.text, fontSize = 15.5.sp, lineHeight = 22.sp),
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp, max = 168.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
+                textStyle = TextStyle(color = p.text, fontSize = 16.sp, lineHeight = 23.sp),
                 cursorBrush = SolidColor(p.primary),
-                maxLines = 6,
+                maxLines = 7,
                 decorationBox = { inner ->
                     Box {
                         if (field.text.isEmpty()) {
                             Text(
-                                text = if (asrBusy) "正在识别语音…" else "给 DeepSeek 发消息…",
+                                text = when {
+                                    recorder.recording -> "正在聆听…"
+                                    asrBusy -> "正在识别语音…"
+                                    else -> "给 DeepSeek 发送消息"
+                                },
                                 color = p.faint,
-                                fontSize = 15.5.sp,
-                                modifier = Modifier.padding(top = 1.dp),
+                                fontSize = 16.sp,
+                                lineHeight = 23.sp,
                             )
                         }
                         inner()
@@ -266,8 +261,58 @@ fun Composer(
                 },
             )
 
-            if (field.text.isEmpty()) {
-                if (allowVoice) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(start = 10.dp, end = 8.dp, bottom = 8.dp, top = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    PillToggle(thinkLabel, Icons.Rounded.Psychology, thinkActive, onToggleThink)
+                    PillToggle("联网搜索", Icons.Rounded.Language, webActive, onToggleWeb)
+                }
+                Spacer(Modifier.width(4.dp))
+
+                if (allowAttach) Box {
+                    IconTap(
+                        Icons.Rounded.AttachFile,
+                        "添加附件",
+                        onClick = { attachMenu = true },
+                        tint = p.dim,
+                        iconSize = 21.dp,
+                    )
+                    DropdownMenu(
+                        expanded = attachMenu,
+                        onDismissRequest = { attachMenu = false },
+                        containerColor = p.surface,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("上传文件") },
+                            leadingIcon = { Icon(Icons.Rounded.AttachFile, null, tint = p.dim) },
+                            onClick = {
+                                attachMenu = false
+                                onPickFile()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("上传图片") },
+                            leadingIcon = { Icon(Icons.Rounded.Image, null, tint = p.dim) },
+                            onClick = {
+                                attachMenu = false
+                                onPickImage()
+                            },
+                        )
+                    }
+                }
+
+                if (allowVoice && field.text.isEmpty() && !streaming) {
                     MicButton(
                         recording = recorder.recording,
                         enabled = !streaming,
@@ -276,44 +321,46 @@ fun Composer(
                         onRelease = { endRecording() },
                     )
                 }
-            }
 
-            val canSend = !streaming && (field.text.isNotBlank() || attachments.any { it.status == "ready" })
-            SendButton(
-                streaming = streaming,
-                enabled = canSend,
-                onClick = {
-                    if (streaming) onStop() else {
-                        field = TextFieldValue("")
-                        onSend()
-                    }
-                },
-            )
+                Spacer(Modifier.width(4.dp))
+                SendButton(
+                    streaming = streaming,
+                    enabled = canSend,
+                    onClick = {
+                        if (streaming) onStop() else if (canSend) {
+                            field = TextFieldValue("")
+                            onSend()
+                        }
+                    },
+                )
+            }
         }
+
         Text(
             text = when {
                 uploading > 0 -> "正在上传 $uploading 个文件…"
                 asrBusy -> "语音识别中…"
-                else -> "内容由 AI 生成，请自行甄别"
+                else -> "内容由 AI 生成，请仔细甄别"
             },
             color = p.faint,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 6.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            textAlign = TextAlign.Center,
         )
     }
 
     if (showPermissionDialog) {
         AlertDialog(
             onDismissRequest = { showPermissionDialog = false },
-            title = { Text("需要麦克风权限") },
-            text = { Text("语音输入需要录音权限，仅用于将你的语音发送到 DeepSeek 语音识别接口。") },
+            containerColor = p.surface,
+            shape = RoundedCornerShape(20.dp),
+            title = { Text("需要麦克风权限", color = p.text, fontWeight = FontWeight.SemiBold) },
+            text = { Text("语音输入需要录音权限，仅用于将你的语音发送到 DeepSeek 语音识别接口。", color = p.dim) },
             confirmButton = {
                 TextButton(onClick = { showPermissionDialog = false }) { Text("知道了") }
             },
-            containerColor = p.surfaceHigh,
         )
     }
 }
@@ -327,11 +374,14 @@ private fun MicButton(
     onRelease: () -> Unit,
 ) {
     val p = LocalPalette.current
-    val scale by animateFloatAsState(if (recording) 1.15f else 1f, spring(Spring.DampingRatioMediumBouncy), label = "mic")
     Box(
         Modifier
-            .padding(end = 2.dp)
-            .size(38.dp)
+            .size(40.dp)
+            .clip(CircleShape)
+            .semantics {
+                role = Role.Button
+                contentDescription = "按住说话"
+            }
             .pointerInput(enabled, asrBusy) {
                 if (!enabled || asrBusy) return@pointerInput
                 detectTapGestures(
@@ -347,59 +397,54 @@ private fun MicButton(
         if (recording) {
             val transition = rememberInfiniteTransition(label = "pulse")
             val pulse by transition.animateFloat(
-                initialValue = 0.7f,
-                targetValue = 1.5f,
-                animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
+                initialValue = 0.75f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(tween(700, easing = LinearEasing), RepeatMode.Reverse),
                 label = "p",
             )
             Box(
                 Modifier
-                    .size(38.dp * pulse)
+                    .size(40.dp * pulse)
                     .clip(CircleShape)
-                    .background(p.danger.copy(alpha = 0.22f))
+                    .background(p.danger.copy(alpha = 0.16f))
             )
         }
-        Icon(
-            Icons.Rounded.Mic,
-            contentDescription = "语音输入",
-            tint = when {
-                recording -> p.danger
-                asrBusy -> p.primary
-                enabled -> p.dim
-                else -> p.faint.copy(alpha = 0.5f)
-            },
-            modifier = Modifier
-                .size(21.dp)
-                .then(
-                    Modifier.androidxScale(scale)
-                ),
-        )
+        if (asrBusy) {
+            TypingDots(size = 4.dp, color = p.primary)
+        } else {
+            Icon(
+                Icons.Rounded.Mic,
+                contentDescription = null,
+                tint = when {
+                    recording -> p.danger
+                    enabled -> p.dim
+                    else -> p.faint.copy(alpha = 0.5f)
+                },
+                modifier = Modifier.size(21.dp),
+            )
+        }
     }
 }
-
-private fun Modifier.androidxScale(s: Float): Modifier =
-    this.then(Modifier.graphicsLayer { scaleX = s; scaleY = s })
 
 @Composable
 private fun SendButton(streaming: Boolean, enabled: Boolean, onClick: () -> Unit) {
     val p = LocalPalette.current
     val active = streaming || enabled
-    val scale by animateFloatAsState(if (active) 1f else 0.92f, spring(Spring.DampingRatioMediumBouncy), label = "send")
-
+    val bg by animateColorAsState(
+        if (active) p.primary else p.surfaceHigh,
+        tween(160),
+        label = "send-bg",
+    )
     Box(
         Modifier
-            .padding(start = 2.dp)
-            .size(40.dp)
-            .androidxScale(scale)
+            .size(36.dp)
             .clip(CircleShape)
-            .background(
-                if (active) Brush.linearGradient(listOf(p.primary, p.accent.copy(alpha = 0.85f)))
-                else Brush.linearGradient(listOf(p.surfaceHigh, p.surfaceHigh))
-            )
-            .then(if (active) Modifier else Modifier.border(1.dp, p.border, CircleShape))
-            .pointerInput(active) {
-                if (active) detectTapGestures { onClick() }
-            },
+            .background(bg)
+            .clickable(
+                enabled = active,
+                role = Role.Button,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         AnimatedContent(
@@ -410,12 +455,23 @@ private fun SendButton(streaming: Boolean, enabled: Boolean, onClick: () -> Unit
             },
             label = "send-icon",
         ) { isStreaming ->
-            Icon(
-                if (isStreaming) Icons.Rounded.Stop else Icons.Rounded.ArrowUpward,
-                contentDescription = if (isStreaming) "停止生成" else "发送",
-                tint = if (active) Color.White else p.faint,
-                modifier = Modifier.size(20.dp),
-            )
+            if (isStreaming) {
+                // 停止：白色圆角方块，与官方网页端一致
+                Box(
+                    Modifier
+                        .semantics { contentDescription = "停止生成" }
+                        .size(12.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.White)
+                )
+            } else {
+                Icon(
+                    Icons.Rounded.ArrowUpward,
+                    contentDescription = "发送",
+                    tint = if (active) Color.White else p.faint,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
@@ -423,65 +479,55 @@ private fun SendButton(streaming: Boolean, enabled: Boolean, onClick: () -> Unit
 @Composable
 private fun AttachmentChip(att: Attachment, onRemove: () -> Unit) {
     val p = LocalPalette.current
+    val failed = att.status == "failed"
     Row(
         Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(p.surfaceAlt)
-            .border(1.dp, if (att.status == "failed") p.danger.copy(alpha = 0.4f) else p.border, RoundedCornerShape(12.dp))
-            .padding(start = 8.dp, end = 4.dp, top = 5.dp, bottom = 5.dp),
+            .background(if (failed) p.danger.copy(alpha = 0.08f) else p.surfaceAlt)
+            .padding(start = 8.dp, end = 2.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(26.dp)
-                .clip(RoundedCornerShape(7.dp))
-                .background(p.primary.copy(alpha = 0.14f)),
+                .size(30.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(p.primary.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                att.name.substringAfterLast('.', "file").take(3).uppercase(),
-                color = p.primary,
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            if (att.status == "uploading") {
+                TypingDots(size = 3.dp, color = p.primary)
+            } else {
+                Text(
+                    att.name.substringAfterLast('.', "file").take(4).uppercase(),
+                    color = p.primary,
+                    fontSize = 8.5.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
-        Spacer(Modifier.width(7.dp))
-        Column(Modifier.widthIn(max = 120.dp)) {
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.widthIn(max = 140.dp)) {
             Text(
                 att.name,
                 color = p.text,
-                fontSize = 11.5.sp,
+                fontSize = 12.5.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
                 when (att.status) {
                     "uploading" -> "上传解析中…"
-                    "failed" -> att.error?.take(20) ?: "上传失败"
+                    "failed" -> att.error?.take(24) ?: "上传失败"
                     "ready" -> com.hotsteel.deepseekhot.util.Fmt.bytes(att.size)
                     else -> "待上传"
                 },
-                color = if (att.status == "failed") p.danger else p.faint,
-                fontSize = 9.5.sp,
+                color = if (failed) p.danger else p.faint,
+                fontSize = 10.5.sp,
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
-        Spacer(Modifier.width(4.dp))
-        Tappable(
-            Modifier
-                .size(22.dp)
-                .clip(CircleShape),
-            onClick = onRemove,
-        ) {
-            Icon(
-                Icons.Rounded.Close,
-                contentDescription = "移除",
-                tint = p.faint,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(13.dp),
-            )
-        }
+        IconTap(Icons.Rounded.Close, "移除附件", onRemove, tint = p.faint, size = 32.dp, iconSize = 15.dp)
     }
 }
 
@@ -497,11 +543,11 @@ private fun RecordingPanel(amplitude: Float, elapsedMs: Long) {
     )
     Row(
         Modifier
+            .widthIn(max = 760.dp)
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(p.danger.copy(alpha = 0.10f))
-            .border(1.dp, p.danger.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
+            .background(p.danger.copy(alpha = 0.08f))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -512,16 +558,16 @@ private fun RecordingPanel(amplitude: Float, elapsedMs: Long) {
                 .background(p.danger)
         )
         Spacer(Modifier.width(8.dp))
-        Text("正在录音", color = p.danger, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.width(10.dp))
+        Text("松开结束", color = p.danger, fontSize = 12.5.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(12.dp))
         Row(
-            Modifier.weight(1f),
+            Modifier.weight(1f).height(26.dp),
             horizontalArrangement = Arrangement.spacedBy(3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             repeat(24) { i ->
                 val wave = (sin(phase + i * 0.55f) * 0.5f + 0.5f)
-                val h = (4 + wave * 22 * (0.25f + amplitude)).dp
+                val h = (4 + wave * 20 * (0.25f + amplitude)).coerceAtMost(26f).dp
                 Box(
                     Modifier
                         .width(2.5.dp)
@@ -535,7 +581,7 @@ private fun RecordingPanel(amplitude: Float, elapsedMs: Long) {
         Text(
             text = "%d:%02d".format(elapsedMs / 1000 / 60, (elapsedMs / 1000) % 60),
             color = p.danger,
-            fontSize = 11.sp,
+            fontSize = 12.sp,
             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
         )
     }

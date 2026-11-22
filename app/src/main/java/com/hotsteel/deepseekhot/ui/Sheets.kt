@@ -5,7 +5,6 @@ package com.hotsteel.deepseekhot.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -29,6 +28,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,8 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +64,7 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         sheetState = sheet,
         containerColor = p.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = { SheetHandle() },
     ) {
         Column(
@@ -76,19 +77,20 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("模型与接口", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("模型与接口", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "自动从 /models 获取 · 支持自由切换协议",
+                        "自动从 /models 获取 · 支持随时切换协议",
                         color = p.faint,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 3.dp),
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp),
                     )
                 }
                 Tappable(
                     Modifier
-                        .size(34.dp)
+                        .size(38.dp)
                         .clip(CircleShape)
-                        .background(p.surfaceAlt),
+                        .background(p.surfaceAlt)
+                        .border(1.dp, p.border, CircleShape),
                     onClick = { vm.refreshModels() },
                 ) {
                     val transition = rememberInfiniteTransition(label = "spin")
@@ -105,7 +107,7 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                         tint = p.dim,
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .size(17.dp)
+                            .size(18.dp)
                             .rotate(angle),
                     )
                 }
@@ -122,7 +124,7 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(18.dp))
             SectionLabel("模型")
             Spacer(Modifier.height(8.dp))
 
@@ -138,19 +140,19 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                 Text(
                     text = "获取模型失败：${vm.modelsError}",
                     color = p.danger,
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     modifier = Modifier.padding(vertical = 4.dp),
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SectionLabel("思考强度")
                 Spacer(Modifier.weight(1f))
                 Text(
                     text = "effort",
                     color = p.faint,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                 )
             }
             Spacer(Modifier.height(8.dp))
@@ -158,9 +160,17 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
             val model = vm.models.firstOrNull { it.id == vm.settings.model }
             val levels = (listOf("none") + (model?.efforts.orEmpty().ifEmpty { listOf("low", "high", "max") }))
                 .distinct()
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(p.surfaceAlt)
+                    .border(1.dp, p.border, RoundedCornerShape(12.dp))
+                    .padding(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
                 levels.forEach { level ->
-                    EffortChip(
+                    EffortSegment(
                         level = level,
                         selected = level == vm.settings.effort,
                         modifier = Modifier.weight(1f),
@@ -168,15 +178,15 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                     )
                 }
             }
-            Spacer(Modifier.height(7.dp))
+            Spacer(Modifier.height(8.dp))
             Text(
                 text = effortHint(vm.settings.effort),
                 color = p.faint,
-                fontSize = 11.sp,
-                lineHeight = 17.sp,
+                fontSize = 12.sp,
+                lineHeight = 18.sp,
             )
 
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(20.dp))
             SectionLabel("接口格式")
             Spacer(Modifier.height(8.dp))
             Protocol.entries.forEach { protocol ->
@@ -185,13 +195,13 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                     selected = protocol == vm.settings.protocol,
                     onClick = { vm.setProtocol(protocol) },
                 )
-                Spacer(Modifier.height(7.dp))
+                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
-                text = "切换协议只影响请求格式，模型、联网与文件能力保持一致；Anthropic 格式支持最完整的服务端工具块。",
+                text = "切换协议仅影响请求结构，模型、联网与文件能力保持一致；Anthropic 格式支持最完整的服务端工具块。",
                 color = p.faint,
-                fontSize = 11.sp,
+                fontSize = 11.5.sp,
                 lineHeight = 17.sp,
             )
         }
@@ -203,22 +213,22 @@ private fun SheetHandle() {
     Box(
         Modifier
             .padding(vertical = 10.dp)
-            .size(width = 38.dp, height = 4.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(LocalPalette.current.faint.copy(alpha = 0.5f))
+            .size(width = 36.dp, height = 4.dp)
+            .clip(CircleShape)
+            .background(LocalPalette.current.border)
     )
 }
 
 private fun effortHint(level: String): String = when (level) {
-    "none" -> "关闭思考，直接作答，速度最快、消耗最低。"
-    "low" -> "轻度思考，适合日常问答与改写。"
-    "high" -> "默认深度思考，兼顾质量与耗时。"
-    "max" -> "极限思考，模型会花更多时间推演，适合难题与数学。"
+    "none" -> "关闭思考，直接作答，响应最快、消耗最低。"
+    "low" -> "轻度思考，适合日常问答、翻译与改写。"
+    "high" -> "默认深度思考，兼顾回答质量与思考耗时。"
+    "max" -> "极限思考，模型会投入更多推理步骤，适合复杂编程与数学。"
     else -> ""
 }
 
 @Composable
-private fun EffortChip(level: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun EffortSegment(level: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val p = LocalPalette.current
     val label = when (level) {
         "none" -> "关闭"
@@ -229,20 +239,16 @@ private fun EffortChip(level: String, selected: Boolean, modifier: Modifier = Mo
     }
     Tappable(
         modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (selected) p.primary.copy(alpha = 0.18f) else p.surfaceAlt)
-            .border(
-                1.dp,
-                if (selected) p.primary.copy(alpha = 0.45f) else p.border,
-                RoundedCornerShape(12.dp),
-            )
-            .padding(vertical = 10.dp),
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (selected) p.surface else Color.Transparent)
+            .then(if (selected) Modifier.border(1.dp, p.primary.copy(alpha = 0.35f), RoundedCornerShape(9.dp)) else Modifier)
+            .padding(vertical = 9.dp),
         onClick = onClick,
     ) {
         Text(
             text = label,
             color = if (selected) p.primary else p.dim,
-            fontSize = 12.5.sp,
+            fontSize = 13.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
             modifier = Modifier.align(Alignment.Center),
         )
@@ -252,15 +258,16 @@ private fun EffortChip(level: String, selected: Boolean, modifier: Modifier = Mo
 @Composable
 private fun ModelRow(model: ModelInfo, selected: Boolean, onClick: () -> Unit) {
     val p = LocalPalette.current
+    val shape = RoundedCornerShape(14.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(15.dp))
-            .background(if (selected) p.primary.copy(alpha = 0.10f) else p.surfaceAlt.copy(alpha = 0.6f))
+            .clip(shape)
+            .background(if (selected) p.primarySoft else p.surfaceAlt)
             .border(
                 1.dp,
-                if (selected) p.primary.copy(alpha = 0.4f) else p.border,
-                RoundedCornerShape(15.dp),
+                if (selected) p.primary.copy(alpha = 0.45f) else p.border,
+                shape,
             )
             .clickable(onClick = onClick)
             .padding(13.dp),
@@ -268,29 +275,26 @@ private fun ModelRow(model: ModelInfo, selected: Boolean, onClick: () -> Unit) {
     ) {
         Box(
             Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(11.dp))
-                .background(
-                    if (selected) Brush.linearGradient(listOf(p.primary, p.accent))
-                    else Brush.linearGradient(listOf(p.surfaceHigh, p.surfaceHigh))
-                ),
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (selected) p.primary else p.surfaceHigh),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (model.id.contains("pro")) "PRO" else "F",
+                text = if (model.id.contains("pro")) "PRO" else "DS",
                 color = if (selected) Color.White else p.dim,
-                fontSize = 10.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
             )
         }
-        Spacer(Modifier.width(11.dp))
+        Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(model.displayName, color = p.text, fontSize = 13.5.sp, fontWeight = FontWeight.Medium)
+            Text(model.displayName, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Row(Modifier.padding(top = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(model.id, color = p.faint, fontSize = 10.sp)
+                Text(model.id, color = p.faint, fontSize = 11.sp)
                 model.contextWindow?.let {
                     Spacer(Modifier.width(6.dp))
-                    Tag("${Fmt.tokens(it)} 上下文", p.accent)
+                    Tag("${Fmt.tokens(it)} 上下文", p.primary)
                 }
                 if (model.imageInput) {
                     Spacer(Modifier.width(5.dp))
@@ -299,7 +303,7 @@ private fun ModelRow(model: ModelInfo, selected: Boolean, onClick: () -> Unit) {
             }
         }
         AnimatedVisibility(visible = selected) {
-            Icon(Icons.Rounded.Check, null, tint = p.primary, modifier = Modifier.size(18.dp))
+            Icon(Icons.Rounded.Check, null, tint = p.primary, modifier = Modifier.size(19.dp))
         }
     }
 }
@@ -312,27 +316,28 @@ private fun ProtocolRow(protocol: Protocol, selected: Boolean, onClick: () -> Un
         Protocol.RESPONSES -> "OpenAI 新接口 · /responses"
         Protocol.ANTHROPIC -> "Claude 兼容 · /anthropic/v1/messages"
     }
+    val shape = RoundedCornerShape(14.dp)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(13.dp))
-            .background(if (selected) p.primary.copy(alpha = 0.10f) else p.surfaceAlt.copy(alpha = 0.5f))
+            .clip(shape)
+            .background(if (selected) p.primarySoft else p.surfaceAlt)
             .border(
                 1.dp,
-                if (selected) p.primary.copy(alpha = 0.4f) else p.border,
-                RoundedCornerShape(13.dp),
+                if (selected) p.primary.copy(alpha = 0.45f) else p.border,
+                shape,
             )
             .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 11.dp),
+            .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text(protocol.label, color = p.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text(desc, color = p.faint, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
+            Text(protocol.label, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(desc, color = p.faint, fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
         }
         Box(
             Modifier
-                .size(18.dp)
+                .size(19.dp)
                 .clip(CircleShape)
                 .border(1.5.dp, if (selected) p.primary else p.faint.copy(alpha = 0.5f), CircleShape),
             contentAlignment = Alignment.Center,
@@ -354,7 +359,7 @@ private fun ProtocolRow(protocol: Protocol, selected: Boolean, onClick: () -> Un
 fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
     val p = LocalPalette.current
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val stats = vm.stats
     val balance = vm.balance
     val info = balance?.infos?.firstOrNull()
@@ -363,6 +368,7 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         sheetState = sheet,
         containerColor = p.surface,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = { SheetHandle() },
     ) {
         Column(
@@ -375,33 +381,35 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("用量与余额", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("实时查询 · 本地统计", color = p.faint, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
+                    Text("用量与余额", color = p.text, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("实时余额 · 本地请求统计", color = p.faint, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                 }
                 if (vm.gateway.supportsBalance) {
                     Tappable(
                         Modifier
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(CircleShape)
                             .background(p.surfaceAlt)
-                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                            .border(1.dp, p.border, CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
                         onClick = { vm.refreshBalance() },
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Refresh, null, tint = p.dim, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Rounded.Refresh, null, tint = p.dim, modifier = Modifier.size(15.dp))
                             Spacer(Modifier.width(5.dp))
-                            Text(if (vm.balanceLoading) "查询中" else "刷新", color = p.dim, fontSize = 11.sp)
+                            Text(if (vm.balanceLoading) "查询中" else "刷新", color = p.dim, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
             }
 
             Spacer(Modifier.height(16.dp))
+            val heroShape = RoundedCornerShape(18.dp)
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Brush.linearGradient(listOf(p.primary.copy(alpha = 0.22f), p.accent.copy(alpha = 0.12f))))
-                    .border(1.dp, p.primary.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
+                    .clip(heroShape)
+                    .background(p.primarySoft)
+                    .border(1.dp, p.primary.copy(alpha = 0.25f), heroShape)
                     .padding(18.dp),
             ) {
                 Column {
@@ -412,7 +420,7 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                                 .clip(CircleShape)
                                 .background(if (balance?.available == true) p.success else p.faint)
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(7.dp))
                         Text(
                             when {
                                 !vm.gateway.supportsBalance -> "${vm.gateway.label} · 无余额接口"
@@ -421,34 +429,35 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                                 else -> "账户不可用"
                             },
                             color = p.dim,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
                         )
                         Spacer(Modifier.weight(1f))
                         if (balance != null) {
                             Text(
                                 "更新于 ${Fmt.clock(balance.fetchedAt)}",
                                 color = p.faint,
-                                fontSize = 10.sp,
+                                fontSize = 11.sp,
                             )
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(10.dp))
                     Text(
-                        text = info?.let { "¥${it.total}" } ?: if (vm.gateway.supportsBalance) "—" else "—",
+                        text = info?.let { "¥${it.total}" } ?: "—",
                         color = p.text,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = (-0.8).sp,
                     )
-                    Spacer(Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         MiniStat("赠送余额", info?.let { "¥${it.granted}" } ?: "—")
                         MiniStat("充值余额", info?.let { "¥${it.toppedUp}" } ?: "—")
                     }
                 }
             }
 
-            Spacer(Modifier.height(18.dp))
+            Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile(
                     title = "今日请求",
@@ -459,7 +468,7 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                 StatTile(
                     title = "今日花费",
                     value = Fmt.money(stats.dayCost),
-                    sub = "估算",
+                    sub = "按官方价目估算",
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -484,24 +493,36 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
             Spacer(Modifier.height(18.dp))
             SectionLabel("计费参考")
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = Pricing.priceLabel(vm.settings.model),
-                color = p.dim,
-                fontSize = 11.5.sp,
-            )
-            Text(
-                text = "高峰时段：北京时间工作日 9:00–12:00、14:00–18:00，单价为空闲时段的 2 倍。联网搜索与网页抓取的工具调用自 2026-11-18 起不再单独计费，结果按输入 Token 计费。",
-                color = p.faint,
-                fontSize = 11.sp,
-                lineHeight = 17.sp,
-                modifier = Modifier.padding(top = 5.dp),
-            )
-            Spacer(Modifier.height(12.dp))
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(p.surfaceAlt)
+                    .border(1.dp, p.border, RoundedCornerShape(14.dp))
+                    .padding(14.dp),
+            ) {
+                Text(
+                    text = Pricing.priceLabel(vm.settings.model),
+                    color = p.text,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    text = "高峰时段：北京时间工作日 9:00–12:00、14:00–18:00，单价为空闲时段的 2 倍。联网搜索与网页抓取工具调用结果按输入 Token 计费。",
+                    color = p.faint,
+                    fontSize = 11.5.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
             Tappable(
                 Modifier
+                    .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(p.surfaceAlt)
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                    .background(p.primarySoft)
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
                 onClick = {
                     Sys.openUrl(
                         context,
@@ -510,19 +531,23 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                     )
                 },
             ) {
-                Text(
-                    if (vm.gateway.isOpencode) "前往 OpenCode Console 管理用量 →" else "前往开放平台充值 →",
-                    color = p.primary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                )
+                Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (vm.gateway.isOpencode) "前往 OpenCode Console 管理用量" else "前往 DeepSeek 开放平台充值",
+                        color = p.primary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, null, tint = p.primary, modifier = Modifier.size(15.dp))
+                }
             }
             Spacer(Modifier.height(8.dp))
             Text(
                 "余额与用量以服务端返回为准；本地统计仅覆盖本机请求，费用为估算值。",
                 color = p.faint,
-                fontSize = 10.sp,
-                lineHeight = 15.sp,
+                fontSize = 11.sp,
+                lineHeight = 16.sp,
             )
         }
     }
@@ -532,23 +557,25 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
 private fun MiniStat(label: String, value: String) {
     val p = LocalPalette.current
     Column {
-        Text(label, color = p.faint, fontSize = 10.sp)
-        Text(value, color = p.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 2.dp))
+        Text(label, color = p.dim, fontSize = 11.sp)
+        Text(value, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
 @Composable
 private fun StatTile(title: String, value: String, sub: String, modifier: Modifier = Modifier) {
     val p = LocalPalette.current
+    val shape = RoundedCornerShape(14.dp)
     Column(
         modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(p.surfaceAlt.copy(alpha = 0.7f))
+            .clip(shape)
+            .background(p.surfaceAlt)
+            .border(1.dp, p.border, shape)
             .padding(14.dp),
     ) {
-        Text(title, color = p.faint, fontSize = 10.5.sp)
-        Spacer(Modifier.height(5.dp))
-        Text(value, color = p.text, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-        Text(sub, color = p.faint, fontSize = 10.sp, modifier = Modifier.padding(top = 2.dp))
+        Text(title, color = p.faint, fontSize = 11.5.sp)
+        Spacer(Modifier.height(6.dp))
+        Text(value, color = p.text, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        Text(sub, color = p.faint, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
     }
 }

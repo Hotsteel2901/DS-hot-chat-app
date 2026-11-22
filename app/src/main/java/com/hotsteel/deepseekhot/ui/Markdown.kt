@@ -5,26 +5,33 @@ package com.hotsteel.deepseekhot.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,14 +50,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Sys
+import kotlinx.coroutines.delay
 
 sealed interface MdBlock {
     data class Paragraph(val text: String) : MdBlock
@@ -378,27 +380,33 @@ fun MarkdownText(
     onLink: (String) -> Unit,
 ) {
     val p = LocalPalette.current
-    val annotated = remember(text, p.isDark) {
+    val annotated = remember(text, p.isDark, p.primary, p.inlineCode, p.codeBg) {
         inlineAnnotated(
             text = text,
-            base = SpanStyle(color = p.text),
+            base = SpanStyle(color = style.color),
             linkColor = p.primary,
-            codeColor = if (p.isDark) Color(0xFF9FD0FF) else Color(0xFF0B5FA5),
+            codeColor = p.inlineCode,
             codeBg = p.codeBg,
         )
     }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
-    val context = LocalContext.current
+    val hasLinks = remember(annotated) {
+        annotated.getStringAnnotations(LINK_TAG, 0, annotated.length).isNotEmpty()
+    }
     Text(
         text = annotated,
-        modifier = modifier.pointerInput(annotated) {
-            detectTapGestures { pos ->
-                val result = layout ?: return@detectTapGestures
-                val offset = result.getOffsetForPosition(pos)
-                annotated.getStringAnnotations(LINK_TAG, offset, offset).firstOrNull()?.let {
-                    Sys.openUrl(context, it.item)
+        modifier = if (hasLinks) {
+            modifier.pointerInput(annotated, onLink) {
+                detectTapGestures { pos ->
+                    val result = layout ?: return@detectTapGestures
+                    val offset = result.getOffsetForPosition(pos)
+                    annotated.getStringAnnotations(LINK_TAG, offset, offset).firstOrNull()?.let {
+                        onLink(it.item)
+                    }
                 }
             }
+        } else {
+            modifier
         },
         style = style,
         onTextLayout = { layout = it },
@@ -415,105 +423,108 @@ fun MarkdownView(
     val blocks = remember(text) { MarkdownParser.parse(text) }
     val body = TextStyle(color = p.text, fontSize = 15.5.sp, lineHeight = 25.sp)
     val context = LocalContext.current
+    val openLink: (String) -> Unit = remember(context, onLink) {
+        { url ->
+            onLink(url)
+        }
+    }
 
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-        blocks.forEach { block ->
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        blocks.forEachIndexed { idx, block ->
             when (block) {
                 is MdBlock.Paragraph -> {
-                    SelectionContainer {
-                        MarkdownText(block.text, style = body, onLink = onLink)
-                    }
+                    MarkdownText(block.text, style = body, onLink = openLink)
                 }
 
                 is MdBlock.Heading -> {
                     val size = when (block.level) {
-                        1 -> 22.sp
-                        2 -> 19.sp
-                        3 -> 17.sp
+                        1 -> 21.sp
+                        2 -> 18.5.sp
+                        3 -> 16.5.sp
                         else -> 15.5.sp
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (block.level <= 2) {
-                            Box(
-                                Modifier
-                                    .padding(end = 8.dp)
-                                    .width(3.dp)
-                                    .height((size.value * 0.9f).dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(if (block.level == 1) p.primary else p.accent)
-                            )
-                        }
-                        MarkdownText(
-                            block.text,
-                            style = TextStyle(
-                                color = p.text,
-                                fontSize = size,
-                                fontWeight = FontWeight.Bold,
-                                lineHeight = (size.value * 1.35f).sp,
-                            ),
-                            onLink = onLink,
-                        )
-                    }
+                    MarkdownText(
+                        block.text,
+                        modifier = Modifier.padding(top = if (idx == 0) 0.dp else 6.dp),
+                        style = TextStyle(
+                            color = p.text,
+                            fontSize = size,
+                            fontWeight = if (block.level <= 2) FontWeight.Bold else FontWeight.SemiBold,
+                            lineHeight = (size.value * 1.38f).sp,
+                            letterSpacing = (-0.2).sp,
+                        ),
+                        onLink = openLink,
+                    )
                 }
 
                 is MdBlock.Code -> CodeBlock(block.lang, block.code, context)
 
                 is MdBlock.Quote -> {
-                    Row {
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(IntrinsicSize.Min)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(p.surfaceAlt.copy(alpha = 0.55f)),
+                    ) {
                         Box(
                             Modifier
-                                .width(2.dp)
-                                .height(20.dp)
-                                .background(p.primary.copy(alpha = 0.55f), RoundedCornerShape(1.dp))
+                                .width(3.dp)
+                                .fillMaxHeight()
+                                .background(p.primary.copy(alpha = 0.65f))
                         )
-                        Spacer(Modifier.width(10.dp))
                         MarkdownText(
                             block.text,
-                            style = body.copy(color = p.dim, fontStyle = FontStyle.Italic),
-                            onLink = onLink,
+                            style = body.copy(color = p.dim, fontSize = 14.5.sp, lineHeight = 23.sp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
+                            onLink = openLink,
                         )
                     }
                 }
 
-                is MdBlock.Bullets -> Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                is MdBlock.Bullets -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     block.items.forEach { (level, item) ->
                         Row(Modifier.padding(start = (level * 16).dp)) {
                             Box(
                                 Modifier
                                     .padding(top = 10.dp, end = 9.dp)
-                                    .size(5.dp)
+                                    .size(if (level == 0) 5.dp else 4.dp)
                                     .clip(RoundedCornerShape(3.dp))
-                                    .background(if (level == 0) p.primary else p.accent)
+                                    .background(if (level == 0) p.dim else p.faint)
                             )
-                            MarkdownText(item, style = body, onLink = onLink)
+                            MarkdownText(item, style = body, modifier = Modifier.weight(1f), onLink = openLink)
                         }
                     }
                 }
 
-                is MdBlock.Ordered -> Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                is MdBlock.Ordered -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     block.items.forEachIndexed { index, (level, item) ->
                         Row(Modifier.padding(start = (level * 16).dp)) {
                             Text(
                                 text = "${block.start + index}.",
-                                color = p.primary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(end = 8.dp, top = 2.dp),
+                                color = p.dim,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.padding(end = 7.dp, top = 1.dp),
                             )
-                            MarkdownText(item, style = body, onLink = onLink)
+                            MarkdownText(item, style = body, modifier = Modifier.weight(1f), onLink = openLink)
                         }
                     }
                 }
 
-                is MdBlock.Table -> TableBlock(block.header, block.rows)
+                is MdBlock.Table -> TableBlock(block.header, block.rows, openLink)
 
                 is MdBlock.Math -> {
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(p.surfaceAlt.copy(alpha = 0.7f))
-                            .padding(vertical = 10.dp, horizontal = 12.dp),
+                            .background(p.codeBg)
+                            .border(1.dp, p.border, RoundedCornerShape(12.dp))
+                            .horizontalScroll(rememberScrollState())
+                            .padding(vertical = 12.dp, horizontal = 14.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -530,6 +541,7 @@ fun MarkdownView(
                 MdBlock.Rule -> Box(
                     Modifier
                         .fillMaxWidth()
+                        .padding(vertical = 4.dp)
                         .height(1.dp)
                         .background(p.border)
                 )
@@ -541,46 +553,73 @@ fun MarkdownView(
 @Composable
 private fun CodeBlock(lang: String, code: String, context: android.content.Context) {
     val p = LocalPalette.current
+    var copied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            delay(1600)
+            copied = false
+        }
+    }
+
+    val shape = RoundedCornerShape(12.dp)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(shape)
             .background(p.codeBg)
-            .border(1.dp, p.border, RoundedCornerShape(14.dp))
+            .border(1.dp, p.border, shape)
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .background(if (p.isDark) Color(0x14FFFFFF) else Color(0x06000000))
+                .background(p.surfaceAlt)
                 .padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = lang.lowercase(),
-                color = p.faint,
-                fontSize = 11.sp,
+                color = p.dim,
+                fontSize = 11.5.sp,
                 fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium,
                 modifier = Modifier.weight(1f),
             )
-            Tappable(Modifier.clip(RoundedCornerShape(6.dp)).padding(4.dp), onClick = {
-                Sys.copy(context, code, "代码已复制")
-            }) {
-                Icon(
-                    Icons.Rounded.ContentCopy,
-                    contentDescription = "复制代码",
-                    tint = p.faint,
-                    modifier = Modifier.size(14.dp),
-                )
+            Tappable(
+                Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                onClick = {
+                    Sys.copy(context, code, "代码已复制")
+                    copied = true
+                },
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (copied) Icons.Rounded.Check else Icons.Rounded.ContentCopy,
+                        contentDescription = "复制代码",
+                        tint = if (copied) p.success else p.dim,
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (copied) "已复制" else "复制",
+                        color = if (copied) p.success else p.dim,
+                        fontSize = 11.5.sp,
+                    )
+                }
             }
         }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(p.border))
         Box(
             Modifier
+                .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(12.dp)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Text(
                 text = code,
-                color = if (p.isDark) Color(0xFFD5E2FF) else Color(0xFF1B2437),
+                color = if (p.isDark) Color(0xFFD8DEE9) else Color(0xFF1F2329),
                 fontFamily = FontFamily.Monospace,
                 fontSize = 13.sp,
                 lineHeight = 20.sp,
@@ -591,40 +630,56 @@ private fun CodeBlock(lang: String, code: String, context: android.content.Conte
 }
 
 @Composable
-private fun TableBlock(header: List<String>, rows: List<List<String>>) {
+private fun TableBlock(
+    header: List<String>,
+    rows: List<List<String>>,
+    onLink: (String) -> Unit,
+) {
     val p = LocalPalette.current
-    Column(
+    val scrollable = header.size > 3
+    val cellStyle = TextStyle(color = p.dim, fontSize = 13.sp, lineHeight = 19.sp)
+    val headerStyle = TextStyle(color = p.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, lineHeight = 19.sp)
+    val shape = RoundedCornerShape(12.dp)
+
+    Box(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .border(1.dp, p.border, RoundedCornerShape(12.dp))
+            .clip(shape)
+            .border(1.dp, p.border, shape)
+            .then(if (scrollable) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
     ) {
-        Row(Modifier.background(p.surfaceAlt).padding(vertical = 8.dp)) {
-            header.forEach { cell ->
-                Text(
-                    text = cell,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 10.dp),
-                    color = p.text,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-        }
-        rows.forEachIndexed { index, row ->
-            Box(Modifier.fillMaxWidth().height(1.dp).background(p.border))
-            Row(Modifier.padding(vertical = 8.dp)) {
-                repeat(header.size) { i ->
-                    Text(
-                        text = row.getOrElse(i) { "" },
-                        modifier = Modifier
-                            .weight(1f)
+        Column(if (scrollable) Modifier else Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.background(p.surfaceAlt).padding(vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                header.forEach { cell ->
+                    MarkdownText(
+                        text = cell,
+                        modifier = (if (scrollable) Modifier.width(120.dp) else Modifier.weight(1f))
                             .padding(horizontal = 10.dp),
-                        color = p.dim,
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
+                        style = headerStyle,
+                        onLink = onLink,
                     )
+                }
+            }
+            rows.forEachIndexed { index, row ->
+                Box(Modifier.fillMaxWidth().height(1.dp).background(p.border))
+                Row(
+                    Modifier
+                        .background(if (index % 2 == 1) p.surfaceAlt.copy(alpha = 0.35f) else p.surface)
+                        .padding(vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    repeat(header.size) { i ->
+                        MarkdownText(
+                            text = row.getOrElse(i) { "" },
+                            modifier = (if (scrollable) Modifier.width(120.dp) else Modifier.weight(1f))
+                                .padding(horizontal = 10.dp),
+                            style = cellStyle,
+                            onLink = onLink,
+                        )
+                    }
                 }
             }
         }

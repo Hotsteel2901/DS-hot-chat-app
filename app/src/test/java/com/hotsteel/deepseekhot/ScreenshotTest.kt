@@ -22,8 +22,8 @@ import com.hotsteel.deepseekhot.data.ChatMsg
 import com.hotsteel.deepseekhot.data.Citation
 import com.hotsteel.deepseekhot.data.Source
 import com.hotsteel.deepseekhot.data.Usage
+import com.hotsteel.deepseekhot.ui.AppBackground
 import com.hotsteel.deepseekhot.ui.AssistantMessageItem
-import com.hotsteel.deepseekhot.ui.AuroraBackground
 import com.hotsteel.deepseekhot.ui.UserMessageItem
 import com.hotsteel.deepseekhot.ui.theme.DeepSeekHotTheme
 import org.junit.Test
@@ -56,7 +56,7 @@ class ScreenshotTest {
         val view = ComposeView(activity).apply {
             setContent {
                 DeepSeekHotTheme(dark = true, dynamic = false) {
-                    AuroraBackground(Modifier.fillMaxSize()) {
+                    AppBackground(Modifier.fillMaxSize()) {
                         Column(
                             Modifier
                                 .fillMaxSize()
@@ -82,7 +82,7 @@ class ScreenshotTest {
         val view = ComposeView(activity).apply {
             setContent {
                 DeepSeekHotTheme(dark = true, dynamic = false) {
-                    AuroraBackground(Modifier.fillMaxSize()) {
+                    AppBackground(Modifier.fillMaxSize()) {
                         com.hotsteel.deepseekhot.ui.SettingsScreen(
                             vm = vm,
                             onBack = {},
@@ -124,7 +124,8 @@ class ScreenshotTest {
         val canvas = Canvas(bitmap)
         canvas.drawColor(android.graphics.Color.BLACK)
         view.draw(canvas)
-        File("/workspace/$name").outputStream().use {
+        val dir = File("build/screenshots").apply { mkdirs() }
+        File(dir, name).outputStream().use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
     }

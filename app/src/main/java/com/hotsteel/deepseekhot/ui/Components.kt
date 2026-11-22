@@ -3,6 +3,7 @@
 
 package com.hotsteel.deepseekhot.ui
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
@@ -12,7 +13,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,12 +23,24 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -38,99 +51,172 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hotsteel.deepseekhot.R
+import com.hotsteel.deepseekhot.ui.theme.BrandBlue
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
-import kotlin.math.cos
-import kotlin.math.sin
 
+/** 纯色背景。旧版的极光渐变动画会持续重绘整屏，既耗电也和简洁的视觉方向冲突，已移除。 */
 @Composable
-fun AuroraBackground(
+fun AppBackground(
     modifier: Modifier = Modifier,
+    color: Color = LocalPalette.current.bg,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    val p = LocalPalette.current
-    val transition = rememberInfiniteTransition(label = "aurora")
-    val t by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "t",
-    )
-    val strong = if (p.isDark) 0.30f else 0.24f
+    Box(modifier = modifier.background(color), content = content)
+}
 
+/** 品牌标识：DeepSeek 品牌蓝柔和渐变圆底 + 雕塑感对话星芒图标。 */
+@Composable
+fun BrandMark(size: Dp = 28.dp, modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.background(
-            Brush.verticalGradient(listOf(p.bg, p.bgAlt, p.bg))
-        )
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF5E7CFF), BrandBlue, Color(0xFF3552E6))
+                )
+            ),
+        contentAlignment = Alignment.Center,
     ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val c1 = Offset(w * (0.12f + 0.18f * t), h * (0.06f + 0.10f * t))
-            val r1 = w * 0.95f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(p.glowA.copy(alpha = strong), Color.Transparent),
-                    center = c1,
-                    radius = r1,
-                ),
-                radius = r1,
-                center = c1,
-            )
-            val c2 = Offset(w * (0.95f - 0.20f * t), h * (0.22f + 0.12f * t))
-            val r2 = w * 0.75f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(p.glowB.copy(alpha = strong * 0.75f), Color.Transparent),
-                    center = c2,
-                    radius = r2,
-                ),
-                radius = r2,
-                center = c2,
-            )
-            val angle = t * 6.2832f
-            val c3 = Offset(w * 0.5f + cos(angle) * w * 0.3f, h * 0.85f + sin(angle) * h * 0.08f)
-            val r3 = w * 0.85f
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(p.primary.copy(alpha = strong * 0.35f), Color.Transparent),
-                    center = c3,
-                    radius = r3,
-                ),
-                radius = r3,
-                center = c3,
-            )
-        }
-        content()
+        Image(
+            painter = painterResource(R.drawable.ic_launcher_foreground),
+            contentDescription = null,
+            modifier = Modifier.requiredSize(size * 1.48f),
+        )
     }
 }
 
+/** 圆形图标按钮：带水波纹，触控区域默认 40dp（满足无障碍最小点击面积）。 */
 @Composable
-fun glassModifier(shape: RoundedCornerShape = RoundedCornerShape(22.dp)): Modifier {
-    val p = LocalPalette.current
-    return Modifier
-        .clip(shape)
-        .background(p.surface.copy(alpha = if (p.isDark) 0.72f else 0.86f))
-        .border(1.dp, p.border, shape)
-}
-
-@Composable
-fun GlassCard(
+fun IconTap(
+    icon: ImageVector,
+    contentDescription: String?,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(22.dp),
-    padding: Dp = 16.dp,
-    content: @Composable BoxScope.() -> Unit,
+    tint: Color = LocalPalette.current.dim,
+    size: Dp = 40.dp,
+    iconSize: Dp = 20.dp,
+    enabled: Boolean = true,
 ) {
     Box(
-        modifier = modifier
-            .clip(shape)
-            .background(LocalPalette.current.surface.copy(alpha = 0.78f))
-            .border(1.dp, LocalPalette.current.border, shape)
-            .padding(padding),
-        content = content,
+        modifier
+            .size(size)
+            .clip(CircleShape)
+            .clickable(
+                enabled = enabled,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = if (enabled) tint else tint.copy(alpha = 0.35f),
+            modifier = Modifier.size(iconSize),
+        )
+    }
+}
+
+/**
+ * 胶囊开关，对应官方网页端输入框里的「深度思考」「联网搜索」按钮：
+ * 关闭时是描边灰字，开启时是浅品牌蓝底 + 品牌蓝字。
+ */
+@Composable
+fun PillToggle(
+    text: String,
+    icon: ImageVector,
+    active: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val p = LocalPalette.current
+    val bg by animateColorAsState(if (active) p.primarySoft else Color.Transparent, tween(180), label = "pill-bg")
+    val fg by animateColorAsState(if (active) p.primary else p.dim, tween(180), label = "pill-fg")
+    val stroke by animateColorAsState(
+        if (active) p.primary.copy(alpha = 0.35f) else p.border,
+        tween(180),
+        label = "pill-stroke",
+    )
+    Row(
+        modifier
+            .height(34.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .border(1.dp, stroke, CircleShape)
+            .clickable(role = Role.Switch, onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = fg, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(text, color = fg, fontSize = 12.5.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+}
+
+/** 二级页面（设置、关于）的统一顶栏。 */
+@Composable
+fun ScreenHeader(
+    title: String,
+    onBack: () -> Unit,
+    actions: @Composable RowScope.() -> Unit = {},
+) {
+    val p = LocalPalette.current
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .height(56.dp)
+            .padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconTap(Icons.AutoMirrored.Rounded.ArrowBack, "返回", onBack, tint = p.text, size = 44.dp, iconSize = 22.dp)
+        Spacer(Modifier.width(4.dp))
+        Text(
+            title,
+            color = p.text,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        actions()
+    }
+}
+
+/** 二次确认对话框：删除会话等不可撤销操作使用。 */
+@Composable
+fun ConfirmDialog(
+    title: String,
+    message: String,
+    confirmText: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+    destructive: Boolean = true,
+) {
+    val p = LocalPalette.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = p.surface,
+        shape = RoundedCornerShape(20.dp),
+        title = { Text(title, color = p.text, fontSize = 17.sp, fontWeight = FontWeight.SemiBold) },
+        text = { Text(message, color = p.dim, fontSize = 14.sp, lineHeight = 21.sp) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(confirmText, color = if (destructive) p.danger else p.primary, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("取消", color = p.dim) } },
     )
 }
 
@@ -141,45 +227,36 @@ fun Modifier.shimmer(): Modifier {
     val x by transition.animateFloat(
         initialValue = -400f,
         targetValue = 1400f,
-        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing)),
+        animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing)),
         label = "x",
     )
     return this.background(
         Brush.linearGradient(
-            colors = listOf(p.surfaceAlt, p.surfaceHigh, p.surfaceAlt),
+            colors = listOf(p.surfaceAlt, p.primary.copy(alpha = 0.35f), p.surfaceAlt),
             start = Offset(x, 0f),
-            end = Offset(x + 400f, 400f),
+            end = Offset(x + 400f, 0f),
         )
     )
 }
 
 @Composable
-fun TypingDots(color: Color = LocalPalette.current.accent, size: Dp = 6.dp) {
+fun TypingDots(color: Color = LocalPalette.current.primary, size: Dp = 6.dp) {
     val transition = rememberInfiniteTransition(label = "dots")
-    Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(horizontalArrangement = Arrangement.spacedBy(size * 0.7f), verticalAlignment = Alignment.CenterVertically) {
         repeat(3) { i ->
             val a by transition.animateFloat(
                 initialValue = 0.25f,
                 targetValue = 1f,
                 animationSpec = infiniteRepeatable(
-                    tween(700, delayMillis = i * 160, easing = LinearEasing),
+                    tween(600, delayMillis = i * 150, easing = LinearEasing),
                     RepeatMode.Reverse,
                 ),
                 label = "a$i",
             )
-            val scale by transition.animateFloat(
-                initialValue = 0.7f,
-                targetValue = 1f,
-                animationSpec = infiniteRepeatable(
-                    tween(700, delayMillis = i * 160, easing = LinearEasing),
-                    RepeatMode.Reverse,
-                ),
-                label = "s$i",
-            )
             Box(
                 Modifier
                     .size(size)
-                    .graphicsLayer { scaleX = scale; scaleY = scale; alpha = a }
+                    .graphicsLayer { alpha = a }
                     .clip(CircleShape)
                     .background(color)
             )
@@ -187,25 +264,26 @@ fun TypingDots(color: Color = LocalPalette.current.accent, size: Dp = 6.dp) {
     }
 }
 
+/** 流式输出末尾的圆点光标（与官方网页端一致的实心圆点，而不是竖线）。 */
 @Composable
-fun BlinkingCursor(color: Color = LocalPalette.current.primary) {
+fun BlinkingCursor(color: Color = LocalPalette.current.text) {
     val transition = rememberInfiniteTransition(label = "cursor")
     val a by transition.animateFloat(
         initialValue = 1f,
-        targetValue = 0f,
-        animationSpec = infiniteRepeatable(tween(560, easing = LinearEasing), RepeatMode.Reverse),
+        targetValue = 0.2f,
+        animationSpec = infiniteRepeatable(tween(520, easing = LinearEasing), RepeatMode.Reverse),
         label = "a",
     )
     Box(
         Modifier
-            .padding(start = 2.dp)
-            .size(width = 2.dp, height = 16.dp)
+            .padding(start = 2.dp, top = 4.dp)
+            .size(10.dp)
             .graphicsLayer { alpha = a }
-            .background(color, RoundedCornerShape(1.dp))
+            .background(color, CircleShape)
     )
 }
 
-/** 按压缩放的可点击容器，给卡片和按钮加入轻微的弹性反馈。 */
+/** 按压缩放的可点击容器，给卡片和按钮加入轻微的弹性反馈与水波纹。 */
 @Composable
 fun Tappable(
     modifier: Modifier = Modifier,
@@ -218,7 +296,7 @@ fun Tappable(
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) scaleDown else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow),
         label = "scale",
     )
     Box(
@@ -226,8 +304,9 @@ fun Tappable(
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .clickable(
                 interactionSource = interaction,
-                indication = null,
+                indication = ripple(),
                 enabled = enabled,
+                role = Role.Button,
                 onClick = onClick,
             ),
         content = content,
@@ -244,18 +323,14 @@ fun Tag(
     Text(
         text = text,
         color = color,
-        fontSize = 11.sp,
+        fontSize = 10.5.sp,
         fontWeight = FontWeight.Medium,
+        maxLines = 1,
         modifier = modifier
-            .clip(RoundedCornerShape(7.dp))
-            .background(color.copy(alpha = if (p.isDark) 0.14f else 0.10f))
-            .padding(horizontal = 7.dp, vertical = 3.dp),
+            .clip(RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = if (p.isDark) 0.16f else 0.10f))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
     )
-}
-
-@Composable
-fun DotDivider(color: Color = LocalPalette.current.faint) {
-    Text("·", color = color, fontSize = 12.sp)
 }
 
 @Composable
@@ -264,8 +339,8 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         text = text,
         modifier = modifier,
         color = LocalPalette.current.faint,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.8.sp,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Medium,
+        letterSpacing = 0.3.sp,
     )
 }

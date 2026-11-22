@@ -203,7 +203,7 @@ data class AppSettings(
     val language: String = "中文",
     val location: String = "中国",
     val themeMode: Int = 0, // 0 跟随系统 1 浅色 2 深色
-    val dynamicColor: Boolean = true,
+    val dynamicColor: Boolean = false,
     val ttsVoice: String = "stella",
     val autoRead: Boolean = false,
     val asrEnabled: Boolean = true,
