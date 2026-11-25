@@ -62,6 +62,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -132,7 +133,7 @@ fun ChatScreen(
     var showBookmarks by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    var searchCursor by remember { mutableStateOf(0) }
+    var searchCursor by remember { mutableIntStateOf(0) }
 
     val searchMatches = remember(conv?.messages, searchQuery) {
         val q = searchQuery.trim()
