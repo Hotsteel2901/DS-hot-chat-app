@@ -54,6 +54,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AttachFile
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Language
@@ -127,6 +128,8 @@ fun Composer(
     onToggleThink: () -> Unit = {},
     webActive: Boolean = true,
     onToggleWeb: () -> Unit = {},
+    presetBadge: String? = null,
+    onOpenPresets: (() -> Unit)? = null,
     onHint: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
@@ -196,6 +199,15 @@ fun Composer(
         ) {
             RecordingPanel(recorder.amplitude, recorder.elapsedMs)
         }
+
+        SlashCommandBar(
+            visible = field.text.startsWith("/") && !field.text.contains("\n") && field.text.length <= 12,
+            filter = field.text.trim(),
+            onPick = { cmd ->
+                field = TextFieldValue(cmd.template, TextRange(cmd.template.length))
+                onTextChange(cmd.template)
+            },
+        )
 
         val shape = RoundedCornerShape(24.dp)
         Column(
@@ -276,6 +288,14 @@ fun Composer(
                 ) {
                     PillToggle(thinkLabel, Icons.Rounded.Psychology, thinkActive, onToggleThink)
                     PillToggle("联网搜索", Icons.Rounded.Language, webActive, onToggleWeb)
+                    if (onOpenPresets != null && !presetBadge.isNullOrBlank()) {
+                        PillToggle(
+                            text = presetBadge,
+                            icon = Icons.Rounded.AutoAwesome,
+                            active = presetBadge != "默认",
+                            onClick = onOpenPresets,
+                        )
+                    }
                 }
                 Spacer(Modifier.width(4.dp))
 
@@ -340,7 +360,8 @@ fun Composer(
             text = when {
                 uploading > 0 -> "正在上传 $uploading 个文件…"
                 asrBusy -> "语音识别中…"
-                else -> "内容由 AI 生成，请仔细甄别"
+                field.text.length > 40 -> "约 ${(field.text.length / 2.2).toInt()} tokens · 输入 / 呼出快捷指令"
+                else -> "内容由 AI 生成，请仔细甄别 · 输入 / 可用快捷指令"
             },
             color = p.faint,
             fontSize = 11.sp,

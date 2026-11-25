@@ -73,7 +73,7 @@ fun AppBackground(
     Box(modifier = modifier.background(color), content = content)
 }
 
-/** 品牌标识：DeepSeek 品牌蓝柔和渐变圆底 + 雕塑感对话星芒图标。 */
+/** 品牌标识：全新深海极夜渐变圆底 + 跃动鲸尾极光脉冲图腾。 */
 @Composable
 fun BrandMark(size: Dp = 28.dp, modifier: Modifier = Modifier) {
     Box(
@@ -82,7 +82,7 @@ fun BrandMark(size: Dp = 28.dp, modifier: Modifier = Modifier) {
             .clip(CircleShape)
             .background(
                 Brush.linearGradient(
-                    listOf(Color(0xFF5E7CFF), BrandBlue, Color(0xFF3552E6))
+                    listOf(Color(0xFF1D358C), Color(0xFF2E54DF), BrandBlue, Color(0xFF6E8BFF))
                 )
             ),
         contentAlignment = Alignment.Center,
@@ -90,7 +90,7 @@ fun BrandMark(size: Dp = 28.dp, modifier: Modifier = Modifier) {
         Image(
             painter = painterResource(R.drawable.ic_launcher_foreground),
             contentDescription = null,
-            modifier = Modifier.requiredSize(size * 1.48f),
+            modifier = Modifier.requiredSize(size * 1.42f),
         )
     }
 }

@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.hotsteel.deepseekhot.audio.TtsPlayer
+import com.hotsteel.deepseekhot.audio.TtsTextPrep
 import com.hotsteel.deepseekhot.data.AppSettings
 import com.hotsteel.deepseekhot.data.Attachment
 import com.hotsteel.deepseekhot.data.Balance
@@ -35,6 +36,7 @@ import com.hotsteel.deepseekhot.net.ChatEngine
 import com.hotsteel.deepseekhot.net.Gateways
 import com.hotsteel.deepseekhot.net.ApiGateway
 import com.hotsteel.deepseekhot.net.StreamEvent
+import com.hotsteel.deepseekhot.util.MarkdownExporter
 import com.hotsteel.deepseekhot.util.Pricing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -76,7 +78,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = ConversationRepository(app)
     private val settingsStore = SettingsStore(app)
     private val statsStore = StatsStore(app)
-    val tts = TtsPlayer()
+    val tts = TtsPlayer(app)
 
     var settings by mutableStateOf(AppSettings())
         private set
@@ -118,6 +120,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private var streamJob: Job? = null
+    private var ttsJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -172,12 +175,69 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteChat(id: String) {
+        if (current?.id == id) {
+            stopStreaming()
+            live = null
+        }
         viewModelScope.launch {
             repo.delete(id)
             conversations = conversations.filterNot { it.id == id }
             if (current?.id == id) current = conversations.firstOrNull()
         }
     }
+
+    /** 收藏 / 取消收藏单条消息 */
+    fun toggleStar(msgId: String) {
+        val conv = current ?: return
+        var nowStarred = false
+        val next = conv.copy(
+            messages = conv.messages.map { m ->
+                if (m.id == msgId) {
+                    nowStarred = !m.starred
+                    m.copy(starred = nowStarred)
+                } else m
+            },
+        )
+        applyConversation(next)
+        toast = if (nowStarred) "已加入收藏夹" else "已取消收藏"
+    }
+
+    /** 获取全部会话中已收藏的消息列表（按时间倒序） */
+    fun starredMessages(): List<Pair<Conversation, ChatMsg>> =
+        conversations.flatMap { conv ->
+            conv.messages.filter { it.starred }.map { conv to it }
+        }.sortedByDescending { it.second.createdAt }
+
+    /** 从指定消息处分叉出一条新会话，完整保留历史上下文与角色预设以复用缓存前缀 */
+    fun forkConversation(upToMsgId: String) {
+        if (streaming) return
+        val conv = current ?: return
+        val idx = conv.messages.indexOfFirst { it.id == upToMsgId }
+        if (idx < 0) return
+        val forked = Conversation(
+            title = "${conv.title.ifBlank { "对话" }} · 分支",
+            messages = conv.messages.take(idx + 1),
+            createdAt = conv.createdAt,
+            updatedAt = System.currentTimeMillis(),
+            presetId = conv.presetId ?: settings.activePresetId,
+        )
+        current = forked
+        applyConversation(forked)
+        toast = "已从此处创建分支会话"
+    }
+
+    /** 切换当前与默认提示词角色预设 */
+    fun selectPreset(presetId: String) {
+        updateSettings { it.copy(activePresetId = presetId) }
+        val conv = current
+        if (conv != null && conv.messages.isEmpty()) {
+            applyConversation(conv.copy(presetId = presetId))
+        }
+    }
+
+    /** 将当前会话导出为排版精美的 Markdown 文本 */
+    fun exportCurrentMarkdown(): String? =
+        current?.takeIf { it.messages.isNotEmpty() }?.let { MarkdownExporter.exportConversation(it) }
 
     fun renameChat(id: String, title: String) {
         val conv = conversations.firstOrNull { it.id == id } ?: return
@@ -237,7 +297,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val trimmed = text.trim()
         if (trimmed.isEmpty() && attachments.isEmpty()) return
 
-        val base = current ?: Conversation()
+        val base = current ?: Conversation(presetId = settings.activePresetId)
         val msg = ChatMsg(role = "user", text = trimmed, attachments = attachments)
         val conv = base.copy(
             messages = base.messages + msg,
@@ -539,15 +599,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val today = LocalDate.now().toString()
             val s = stats
             val dayReset = s.day != today
+            val saved = Pricing.savedByCache(lr.model.ifBlank { settings.model }, u, lr.startedAt)
+            val cached = u.cached.coerceAtMost(u.input).toLong()
             stats = s.copy(
                 requests = s.requests + 1,
                 inputTokens = s.inputTokens + u.input,
                 outputTokens = s.outputTokens + u.output,
+                cachedTokens = s.cachedTokens + cached,
                 cost = s.cost + u.cost,
+                savedCost = s.savedCost + saved,
                 day = today,
                 dayRequests = (if (dayReset) 0 else s.dayRequests) + 1,
                 dayTokens = (if (dayReset) 0 else s.dayTokens) + u.input + u.output,
+                dayInputTokens = (if (dayReset) 0L else s.dayInputTokens) + u.input,
+                dayCachedTokens = (if (dayReset) 0L else s.dayCachedTokens) + cached,
                 dayCost = (if (dayReset) 0.0 else s.dayCost) + u.cost,
+                daySavedCost = (if (dayReset) 0.0 else s.daySavedCost) + saved,
             )
             val snapshot = stats
             viewModelScope.launch(Dispatchers.IO) { statsStore.save(snapshot) }
@@ -732,21 +799,76 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (tts.playingId == messageId) {
-            tts.stop()
+            stopSpeak()
             return
         }
+        val chunks = TtsTextPrep.splitChunks(text)
+        if (chunks.isEmpty()) {
+            toast = "当前消息没有可朗读的文字内容"
+            return
+        }
+        stopSpeak()
         ttsBusyId = messageId
-        viewModelScope.launch {
+        ttsJob = viewModelScope.launch {
+            val token = tts.beginStream(messageId, settings.ttsSpeed)
+            var receivedAnyAudio = false
             try {
-                val file = File(getApplication<Application>().cacheDir, "tts_${System.currentTimeMillis()}.wav")
-                api.tts(settings, text.take(4000), settings.ttsVoice, file)
-                tts.play(file, messageId)
+                val sink: (ByteArray) -> Boolean = { pcm ->
+                    receivedAnyAudio = true
+                    tts.writePcm(token, pcm)
+                }
+                if (settings.ttsStreamWs) {
+                    try {
+                        api.ttsStreamWebSocket(settings, chunks, settings.ttsVoice, sink)
+                    } catch (wsErr: Throwable) {
+                        if (wsErr is kotlinx.coroutines.CancellationException) throw wsErr
+                        // 若 WebSocket 在未下发音频前失败，无缝降级为 HTTP 24kHz PCM 流式合成
+                        if (!receivedAnyAudio) {
+                            api.ttsStreamHttpPcm(settings, chunks, settings.ttsVoice, sink)
+                        } else {
+                            throw wsErr
+                        }
+                    }
+                } else {
+                    api.ttsStreamHttpPcm(settings, chunks, settings.ttsVoice, sink)
+                }
+                withContext(Dispatchers.IO) { tts.finishStream(token) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                tts.stop()
+                throw e
             } catch (e: Throwable) {
+                tts.stop()
                 toast = "朗读失败：${e.message}"
             } finally {
-                ttsBusyId = null
+                if (ttsBusyId == messageId) ttsBusyId = null
             }
         }
+    }
+
+    fun stopSpeak() {
+        ttsJob?.cancel()
+        ttsJob = null
+        api.stopTts()
+        tts.stop()
+        ttsBusyId = null
+    }
+
+    fun toggleTtsPause() {
+        tts.togglePause()
+    }
+
+    fun cycleTtsSpeed() {
+        val speeds = listOf(0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+        val curIdx = speeds.indexOfFirst { kotlin.math.abs(it - settings.ttsSpeed) < 0.05f }
+        val next = speeds[(curIdx + 1) % speeds.size]
+        tts.setPlaybackSpeed(next)
+        updateSettings { it.copy(ttsSpeed = next) }
+    }
+
+    override fun onCleared() {
+        stopStreaming()
+        stopSpeak()
+        super.onCleared()
     }
 
     fun transcribe(file: File, onResult: (String) -> Unit) {

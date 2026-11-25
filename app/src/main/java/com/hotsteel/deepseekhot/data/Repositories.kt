@@ -6,6 +6,7 @@ package com.hotsteel.deepseekhot.data
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -30,11 +31,15 @@ private object K {
     val autoTitle = booleanPreferencesKey("auto_title")
     val systemPrompt = stringPreferencesKey("system_prompt")
     val includeMeta = booleanPreferencesKey("include_meta")
+    val cacheOptimization = booleanPreferencesKey("cache_optimization")
+    val activePresetId = stringPreferencesKey("active_preset_id")
     val language = stringPreferencesKey("language")
     val location = stringPreferencesKey("location")
     val themeMode = intPreferencesKey("theme_mode")
     val dynamicColor = booleanPreferencesKey("dynamic_color")
     val ttsVoice = stringPreferencesKey("tts_voice")
+    val ttsSpeed = floatPreferencesKey("tts_speed")
+    val ttsStreamWs = booleanPreferencesKey("tts_stream_ws")
     val autoRead = booleanPreferencesKey("auto_read")
     val haptics = booleanPreferencesKey("haptics")
     val opencodeSession = intPreferencesKey("opencode_session")
@@ -56,11 +61,15 @@ class SettingsStore(private val context: Context) {
             autoTitle = p[K.autoTitle] ?: defaults.autoTitle,
             systemPrompt = p[K.systemPrompt] ?: defaults.systemPrompt,
             includeMeta = p[K.includeMeta] ?: defaults.includeMeta,
+            cacheOptimization = p[K.cacheOptimization] ?: defaults.cacheOptimization,
+            activePresetId = p[K.activePresetId] ?: defaults.activePresetId,
             language = p[K.language] ?: defaults.language,
             location = p[K.location] ?: defaults.location,
             themeMode = p[K.themeMode] ?: defaults.themeMode,
             dynamicColor = p[K.dynamicColor] ?: defaults.dynamicColor,
             ttsVoice = p[K.ttsVoice] ?: defaults.ttsVoice,
+            ttsSpeed = (p[K.ttsSpeed] ?: defaults.ttsSpeed).coerceIn(0.75f, 2.0f),
+            ttsStreamWs = p[K.ttsStreamWs] ?: defaults.ttsStreamWs,
             autoRead = p[K.autoRead] ?: defaults.autoRead,
             haptics = p[K.haptics] ?: defaults.haptics,
             opencodeSession = p[K.opencodeSession] ?: defaults.opencodeSession,
@@ -80,11 +89,15 @@ class SettingsStore(private val context: Context) {
             p[K.autoTitle] = s.autoTitle
             p[K.systemPrompt] = s.systemPrompt
             p[K.includeMeta] = s.includeMeta
+            p[K.cacheOptimization] = s.cacheOptimization
+            p[K.activePresetId] = s.activePresetId
             p[K.language] = s.language
             p[K.location] = s.location
             p[K.themeMode] = s.themeMode
             p[K.dynamicColor] = s.dynamicColor
             p[K.ttsVoice] = s.ttsVoice
+            p[K.ttsSpeed] = s.ttsSpeed
+            p[K.ttsStreamWs] = s.ttsStreamWs
             p[K.autoRead] = s.autoRead
             p[K.haptics] = s.haptics
             p[K.opencodeSession] = s.opencodeSession
@@ -110,7 +123,7 @@ class ConversationRepository(context: Context) {
             ?.mapNotNull { f ->
                 runCatching { json.decodeFromString<Conversation>(f.readText()) }.getOrNull()
             }
-            ?.sortedByDescending { it.updatedAt }
+            ?.sortedWith(compareByDescending<Conversation> { it.pinned }.thenByDescending { it.updatedAt })
             .orEmpty()
     }
 

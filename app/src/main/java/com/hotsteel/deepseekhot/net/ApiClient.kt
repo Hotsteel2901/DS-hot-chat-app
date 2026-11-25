@@ -8,6 +8,7 @@ import com.hotsteel.deepseekhot.data.Balance
 import com.hotsteel.deepseekhot.data.BalanceInfo
 import com.hotsteel.deepseekhot.data.ModelInfo
 import com.hotsteel.deepseekhot.data.Protocol
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -20,6 +21,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import okio.ByteString
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -53,9 +58,23 @@ class ApiClient {
     @Volatile
     private var activeCall: Call? = null
 
+    @Volatile
+    private var activeTtsSocket: WebSocket? = null
+
+    @Volatile
+    private var activeTtsCall: Call? = null
+
     fun stop() {
         runCatching { activeCall?.cancel() }
         activeCall = null
+    }
+
+    fun stopTts() {
+        runCatching { activeTtsSocket?.close(1000, "stopped") }
+        runCatching { activeTtsSocket?.cancel() }
+        activeTtsSocket = null
+        runCatching { activeTtsCall?.cancel() }
+        activeTtsCall = null
     }
 
     fun headers(
@@ -188,14 +207,123 @@ class ApiClient {
         }
     }
 
-    suspend fun tts(settings: AppSettings, text: String, voice: String, target: File): File =
-        withContext(Dispatchers.IO) {
-            val url = Endpoints.voice(settings, "tts")
-                ?: throw ApiException("当前网关不提供语音合成，请切换到 DeepSeek 官方接口")
+    /**
+     * 严格遵循 DeepSeek 官方语音合成 WebSocket 协议：
+     * - 连接 `wss://<host>/v1/tools/tts?voice_id=...&format=pcm&filter_markdown=true`
+     * - 请求头携带 `Authorization: Bearer <API Key>`
+     * - 逐段发送 `{"event":"text","text":"..."}`，末段后发送 `{"event":"finish_text"}`
+     * - 实时将二进制 24kHz 16-bit mono PCM 帧回调给 AudioTrack 边下边播
+     * - 等待 `{"event":"finish","code":"..."}` 正常收尾
+     */
+    suspend fun ttsStreamWebSocket(
+        settings: AppSettings,
+        chunks: List<String>,
+        voice: String,
+        onPcmChunk: (ByteArray) -> Boolean,
+    ): Unit = withContext(Dispatchers.IO) {
+        val httpUrl = Endpoints.voice(settings, "tts")
+            ?: throw ApiException("当前网关不提供语音合成，请切换到 DeepSeek 官方接口")
+        if (chunks.isEmpty()) throw ApiException("没有可朗读的文本内容")
+        val wsBase = when {
+            httpUrl.startsWith("https://") -> "wss://" + httpUrl.removePrefix("https://")
+            httpUrl.startsWith("http://") -> "ws://" + httpUrl.removePrefix("http://")
+            else -> httpUrl
+        }
+        val wsUrl = "$wsBase?voice_id=$voice&format=pcm&filter_markdown=true"
+        val req = Request.Builder()
+            .url(wsUrl)
+            .header("Authorization", "Bearer ${settings.apiKey}")
+            .build()
+
+        val done = CompletableDeferred<Unit>()
+        val ws = client.newWebSocket(
+            req,
+            object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    try {
+                        for (chunk in chunks) {
+                            if (done.isCompleted) return
+                            val msg = JSONObject()
+                                .put("event", "text")
+                                .put("text", chunk)
+                                .toString()
+                            webSocket.send(msg)
+                        }
+                        webSocket.send(JSONObject().put("event", "finish_text").toString())
+                    } catch (t: Throwable) {
+                        if (!done.isCompleted) done.completeExceptionally(t)
+                    }
+                }
+
+                override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                    if (done.isCompleted) return
+                    val keepGoing = onPcmChunk(bytes.toByteArray())
+                    if (!keepGoing) {
+                        webSocket.close(1000, "cancelled")
+                        if (!done.isCompleted) done.complete(Unit)
+                    }
+                }
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    val obj = runCatching { JSONObject(text) }.getOrNull() ?: return
+                    if (obj.optString("event") == "finish") {
+                        val code = obj.optString("code", "success")
+                        val message = obj.optString("message")
+                        webSocket.close(1000, "done")
+                        if (code == "success" || code.isBlank()) {
+                            if (!done.isCompleted) done.complete(Unit)
+                        } else {
+                            val friendly = when (code) {
+                                "invalid_input" -> "语音合成输入无效（请检查文本内容）"
+                                "content_filter" -> "该段文本触发语音内容安全拦截"
+                                "input_timeout" -> "语音合成连接超时，请重试"
+                                else -> message.ifBlank { "语音合成服务异常（$code）" }
+                            }
+                            if (!done.isCompleted) done.completeExceptionally(ApiException(friendly))
+                        }
+                    }
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    val code = response?.code ?: 0
+                    val msg = response?.body?.string().orEmpty()
+                    val ex = if (code > 0) ApiException(errorMessage(msg, code), code)
+                    else ApiException(t.message ?: "语音 WebSocket 连接失败")
+                    if (!done.isCompleted) done.completeExceptionally(ex)
+                }
+
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    if (!done.isCompleted) done.complete(Unit)
+                }
+            }
+        )
+        activeTtsSocket = ws
+        try {
+            done.await()
+        } finally {
+            if (activeTtsSocket === ws) activeTtsSocket = null
+            runCatching { ws.close(1000, "cleanup") }
+        }
+    }
+
+    /**
+     * HTTP 24kHz PCM 流式朗读回退通道（当网络代理不支持 WebSocket 时自动使用）：
+     * 逐段请求 `POST /v1/tools/tts` (`format: "pcm"`)，边收边推入 AudioTrack，
+     * 避免流式 WAV 头长度不规范导致 Android MediaPlayer 报错。
+     */
+    suspend fun ttsStreamHttpPcm(
+        settings: AppSettings,
+        chunks: List<String>,
+        voice: String,
+        onPcmChunk: (ByteArray) -> Boolean,
+    ): Unit = withContext(Dispatchers.IO) {
+        val url = Endpoints.voice(settings, "tts")
+            ?: throw ApiException("当前网关不提供语音合成，请切换到 DeepSeek 官方接口")
+        for (chunk in chunks) {
             val body = JSONObject()
-                .put("text", text)
+                .put("text", chunk)
                 .put("voice_id", voice)
-                .put("format", "wav")
+                .put("format", "pcm")
                 .put("filter_markdown", true)
                 .toString()
             val req = Request.Builder()
@@ -204,17 +332,28 @@ class ApiClient {
                 .header("Authorization", "Bearer ${settings.apiKey}")
                 .header("Content-Type", "application/json")
                 .build()
-            client.newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) {
-                    val err = resp.body?.string().orEmpty()
-                    throw ApiException(errorMessage(err, resp.code), resp.code)
+            val call = client.newCall(req)
+            activeTtsCall = call
+            try {
+                call.execute().use { resp ->
+                    if (!resp.isSuccessful) {
+                        val err = resp.body?.string().orEmpty()
+                        throw ApiException(errorMessage(err, resp.code), resp.code)
+                    }
+                    val stream = resp.body?.byteStream() ?: throw ApiException("语音合成返回为空")
+                    val buf = ByteArray(4096)
+                    while (true) {
+                        val n = stream.read(buf)
+                        if (n <= 0) break
+                        val slice = if (n == buf.size) buf.copyOf() else buf.copyOf(n)
+                        if (!onPcmChunk(slice)) return@withContext
+                    }
                 }
-                val bytes = resp.body?.bytes() ?: throw ApiException("语音合成返回为空")
-                target.parentFile?.mkdirs()
-                target.writeBytes(bytes)
+            } finally {
+                if (activeTtsCall === call) activeTtsCall = null
             }
-            target
         }
+    }
 
     suspend fun asr(settings: AppSettings, wav: File): String = withContext(Dispatchers.IO) {
         val url = Endpoints.voice(settings, "asr")

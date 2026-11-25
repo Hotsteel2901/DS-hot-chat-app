@@ -133,7 +133,7 @@ object Endpoints {
 object OpencodeSession {
 
     const val HEADER = "x-opencode-session"
-    const val USER_AGENT = "deepseek-hot/1.3.0 (Android)"
+    const val USER_AGENT = "deepseek-hot/2.0.0 (Android)"
 
     /** 非会话调用（拉模型、探测）用的进程内稳定 id。 */
     private val fallbackId: String by lazy {

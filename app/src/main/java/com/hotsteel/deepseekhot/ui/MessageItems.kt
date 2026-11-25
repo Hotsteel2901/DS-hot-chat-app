@@ -49,6 +49,10 @@ import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Psychology
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.CallSplit
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material.icons.rounded.StopCircle
 import androidx.compose.material.icons.rounded.TravelExplore
 import androidx.compose.material3.Icon
@@ -245,11 +249,15 @@ fun AssistantMessageItem(
     versions: Int,
     activeVersion: Int,
     speaking: Boolean,
+    starred: Boolean = false,
     onCopy: () -> Unit,
     onRegenerate: () -> Unit,
     onContinue: () -> Unit,
     onSpeak: () -> Unit,
     onSwitchVersion: (Int) -> Unit,
+    onToggleStar: (() -> Unit)? = null,
+    onFork: (() -> Unit)? = null,
+    onShare: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val p = LocalPalette.current
@@ -356,6 +364,21 @@ fun AssistantMessageItem(
                 }
                 if (stopReason == "max_tokens" || status == "stopped") {
                     MessageActionIcon(Icons.Rounded.PlayArrow, "继续生成", onContinue)
+                }
+                if (onToggleStar != null) {
+                    MessageActionIcon(
+                        icon = if (starred) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                        label = if (starred) "取消收藏" else "收藏回答",
+                        active = starred,
+                        activeColor = p.primary,
+                        onClick = onToggleStar,
+                    )
+                }
+                if (onFork != null) {
+                    MessageActionIcon(Icons.Rounded.CallSplit, "从此处分叉新会话", onFork)
+                }
+                if (onShare != null) {
+                    MessageActionIcon(Icons.Rounded.Share, "分享回答", onShare)
                 }
                 Spacer(Modifier.weight(1f))
                 if (usage != null) {

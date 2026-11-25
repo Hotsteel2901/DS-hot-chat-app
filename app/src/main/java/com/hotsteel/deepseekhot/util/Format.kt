@@ -9,13 +9,14 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import com.hotsteel.deepseekhot.data.Block
+import com.hotsteel.deepseekhot.data.Conversation
 import com.hotsteel.deepseekhot.data.Usage
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
 
 object Fmt {
 
@@ -24,6 +25,14 @@ object Fmt {
         n >= 1_000 -> String.format(Locale.US, "%.1fk", n / 1_000.0)
         else -> n.toString()
     }
+
+    fun tokensLong(n: Long): String = when {
+        n >= 1_000_000L -> String.format(Locale.US, "%.2fM", n / 1_000_000.0)
+        n >= 1_000L -> String.format(Locale.US, "%.1fk", n / 1_000.0)
+        else -> n.toString()
+    }
+
+    fun percent(rate: Float): String = "${(rate.coerceIn(0f, 1f) * 100f).toInt()}%"
 
     fun money(v: Double): String = when {
         v <= 0.0 -> "¥0"
@@ -112,11 +121,72 @@ object Pricing {
         return (cached * cachePrice + uncached * inputPrice + usage.output * outputPrice) / 1_000_000.0
     }
 
-    fun priceLabel(model: String): String = if (model.contains("pro")) {
-        "Pro · 输入 ¥4.5/9 · 输出 ¥13.5/27 每百万"
-    } else {
-        "Flash · 输入 ¥1/2 · 输出 ¥4/8 每百万"
+    /** 计算本次请求因上下文硬盘缓存命中而直接节省的费用（元）。 */
+    fun savedByCache(model: String, usage: Usage, at: Long = System.currentTimeMillis()): Double {
+        val cached = usage.cached.coerceAtMost(usage.input)
+        if (cached <= 0) return 0.0
+        val peak = isPeak(at)
+        val pro = model.contains("pro")
+        val cachePrice = if (pro) (if (peak) 0.30 else 0.15) else (if (peak) 0.04 else 0.02)
+        val inputPrice = if (pro) (if (peak) 9.0 else 4.5) else (if (peak) 2.0 else 1.0)
+        return cached * (inputPrice - cachePrice) / 1_000_000.0
     }
+
+    fun priceLabel(model: String): String = if (model.contains("pro")) {
+        "Pro · 缓存命中 ¥0.15/0.30 · 未命中 ¥4.5/9 · 输出 ¥13.5/27（每百万）"
+    } else {
+        "Flash · 缓存命中 ¥0.02/0.04 · 未命中 ¥1/2 · 输出 ¥4/8（每百万）"
+    }
+}
+
+/** 将会话导出为排版精美的 Markdown 文档（含深度思考折叠引用与来源链接）。 */
+object MarkdownExporter {
+    fun exportConversation(conv: Conversation, includeThinking: Boolean = true): String = buildString {
+        appendLine("# ${conv.title.ifBlank { "DeepSeek 对话记录" }}")
+        appendLine()
+        appendLine("> 导出自 DeepSeek Hot · ${Fmt.dayLabel(conv.updatedAt)} ${Fmt.clock(conv.updatedAt)}")
+        appendLine()
+        conv.messages.forEach { msg ->
+            if (msg.role == "user") {
+                appendLine("## 提问")
+                appendLine()
+                appendLine(msg.text.trim())
+                appendLine()
+            } else {
+                val reply = msg.reply ?: return@forEach
+                appendLine("## DeepSeek${reply.model?.let { "（$it）" }.orEmpty()}")
+                appendLine()
+                if (includeThinking) {
+                    val thinking = reply.blocks.filterIsInstance<Block.Thinking>()
+                        .joinToString("\n") { it.text.trim() }.trim()
+                    if (thinking.isNotEmpty()) {
+                        appendLine("<details>")
+                        appendLine("<summary>深度思考过程</summary>")
+                        appendLine()
+                        thinking.lines().forEach { line -> appendLine("> $line") }
+                        appendLine()
+                        appendLine("</details>")
+                        appendLine()
+                    }
+                }
+                val body = reply.blocks.filterIsInstance<Block.Text>()
+                    .joinToString("\n\n") { it.text.trim() }.trim()
+                if (body.isNotEmpty()) {
+                    appendLine(body)
+                    appendLine()
+                }
+                val citations = reply.blocks.filterIsInstance<Block.Text>()
+                    .flatMap { it.citations }.distinctBy { it.url }
+                if (citations.isNotEmpty()) {
+                    appendLine("**参考来源：**")
+                    citations.forEachIndexed { idx, c ->
+                        appendLine("${idx + 1}. [${c.title ?: c.url}](${c.url})")
+                    }
+                    appendLine()
+                }
+            }
+        }
+    }.trimEnd()
 }
 
 object Sys {

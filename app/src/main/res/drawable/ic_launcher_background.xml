@@ -5,17 +5,32 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- 全新深海极夜渐变底：从极光靛蓝过渡到深邃海渊蓝，彻底告别旧版平铺蓝底 -->
     <path android:pathData="M0,0h108v108h-108z">
         <aapt:attr name="android:fillColor">
             <gradient
-                android:startX="14"
-                android:startY="10"
-                android:endX="94"
-                android:endY="98"
+                android:startX="10"
+                android:startY="8"
+                android:endX="98"
+                android:endY="102"
                 android:type="linear">
-                <item android:color="#5E7CFF" android:offset="0.0" />
-                <item android:color="#4D6BFE" android:offset="0.52" />
-                <item android:color="#3552E6" android:offset="1.0" />
+                <item android:color="#1D358C" android:offset="0.0" />
+                <item android:color="#2E54DF" android:offset="0.45" />
+                <item android:color="#4D6BFE" android:offset="0.82" />
+                <item android:color="#6E8BFF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <!-- 顶部柔光径向极光高光 -->
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="54"
+                android:centerY="28"
+                android:gradientRadius="62"
+                android:type="radial">
+                <item android:color="#4089B4FF" android:offset="0.0" />
+                <item android:color="#004D6BFE" android:offset="1.0" />
             </gradient>
         </aapt:attr>
     </path>

@@ -473,6 +473,63 @@ fun UsageSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                 )
             }
             Spacer(Modifier.height(10.dp))
+            // 上下文硬盘缓存命中率与节省费用专属卡片
+            val cacheShape = RoundedCornerShape(14.dp)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(cacheShape)
+                    .background(p.surfaceAlt)
+                    .border(1.dp, p.success.copy(alpha = 0.32f), cacheShape)
+                    .padding(14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("上下文硬盘缓存命中率", color = p.text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.weight(1f))
+                    Tag(
+                        if (vm.settings.cacheOptimization) "极致优化中" else "已关闭优化",
+                        if (vm.settings.cacheOptimization) p.success else p.faint,
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = Fmt.percent(stats.overallCacheHitRate),
+                        color = p.success,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Column(Modifier.padding(bottom = 3.dp)) {
+                        Text(
+                            "累计命中 ${Fmt.tokensLong(stats.cachedTokens)} tokens · 已省 ${Fmt.money(stats.savedCost)}",
+                            color = p.dim,
+                            fontSize = 11.5.sp,
+                        )
+                        Text(
+                            "今日命中率 ${Fmt.percent(stats.dayCacheHitRate)} · 今日省 ${Fmt.money(stats.daySavedCost)}",
+                            color = p.faint,
+                            fontSize = 11.sp,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(CircleShape)
+                        .background(p.surfaceHigh)
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth(stats.overallCacheHitRate.coerceAtLeast(if (stats.cachedTokens > 0) 0.03f else 0f))
+                            .height(6.dp)
+                            .clip(CircleShape)
+                            .background(p.success)
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile(
                     title = "累计请求",

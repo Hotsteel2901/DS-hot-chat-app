@@ -293,8 +293,16 @@ fun SettingsScreen(
                         vm.updateSettings { st -> st.copy(autoTitle = it) }
                     }
                     SettingsDivider()
-                    ToggleRow("注入时间与地点", "将当前日期、所在地与语言作为上下文元信息", s.includeMeta) {
+                    ToggleRow("注入时间与地点", "将日期、所在地与语言作为上下文元信息", s.includeMeta) {
                         vm.updateSettings { st -> st.copy(includeMeta = it) }
+                    }
+                    SettingsDivider()
+                    ToggleRow(
+                        "上下文缓存极致优化",
+                        "按官方文档冻结会话系统前缀（去除分钟级时间抖动）并注入缓存断点，大幅提升命中率",
+                        s.cacheOptimization,
+                    ) {
+                        vm.updateSettings { st -> st.copy(cacheOptimization = it) }
                     }
                 }
 
@@ -344,8 +352,28 @@ fun SettingsScreen(
                         }
                     }
                     Spacer(Modifier.height(8.dp))
+                    ToggleRow(
+                        "WebSocket 实时流式朗读",
+                        "直连官方 wss://api.deepseek.com/v1/tools/tts (24kHz PCM)，边合成边播放，失败自动降级 HTTP PCM",
+                        s.ttsStreamWs,
+                    ) {
+                        vm.updateSettings { st -> st.copy(ttsStreamWs = it) }
+                    }
+                    SettingsDivider()
                     ToggleRow("自动朗读回答", "回答完成后自动合成并播放语音", s.autoRead) {
                         vm.updateSettings { st -> st.copy(autoRead = it) }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    SectionLabel("默认朗读倍速")
+                    Spacer(Modifier.height(8.dp))
+                    ChipSelect(
+                        listOf("0.75x", "1.0x", "1.25x", "1.5x", "2.0x"),
+                        "${s.ttsSpeed}x",
+                        Modifier.fillMaxWidth(),
+                    ) { chosen ->
+                        val v = chosen.removeSuffix("x").toFloatOrNull() ?: 1.0f
+                        vm.tts.setPlaybackSpeed(v)
+                        vm.updateSettings { st -> st.copy(ttsSpeed = v) }
                     }
                     Text(
                         "语音合成与识别使用 /v1/tools/tts 与 /v1/tools/asr，按字符与时长计费。",

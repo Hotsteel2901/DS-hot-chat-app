@@ -43,7 +43,12 @@ import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -84,6 +89,7 @@ import com.hotsteel.deepseekhot.LiveReply
 import com.hotsteel.deepseekhot.StreamMode
 import com.hotsteel.deepseekhot.data.Block
 import com.hotsteel.deepseekhot.data.ChatMsg
+import com.hotsteel.deepseekhot.data.PromptPresets
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Fmt
 import com.hotsteel.deepseekhot.util.Sys
@@ -122,6 +128,22 @@ fun ChatScreen(
     var editing by remember { mutableStateOf<ChatMsg?>(null) }
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showPresets by remember { mutableStateOf(false) }
+    var showBookmarks by remember { mutableStateOf(false) }
+    var searchOpen by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var searchCursor by remember { mutableStateOf(0) }
+
+    val searchMatches = remember(conv?.messages, searchQuery) {
+        val q = searchQuery.trim()
+        if (q.isEmpty() || conv == null) emptyList()
+        else conv.messages.mapIndexedNotNull { idx, m ->
+            if (m.plainText.contains(q, ignoreCase = true)) idx else null
+        }
+    }
+    LaunchedEffect(searchMatches) {
+        if (searchCursor >= searchMatches.size) searchCursor = 0
+    }
 
     val pickFiles = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
@@ -281,12 +303,59 @@ fun ChatScreen(
             onMenu = onOpenDrawer,
             onModels = onShowModels,
             onNewChat = { vm.newChat() },
+            onSearch = { searchOpen = !searchOpen },
+            onPresets = { showPresets = true },
+            onBookmarks = { showBookmarks = true },
             onRename = { renaming = true },
             onPin = { conv?.let { vm.togglePin(it.id) } },
+            onExportMarkdown = {
+                vm.exportCurrentMarkdown()?.let { md -> Sys.copy(context, md, "已复制 Markdown 格式对话") }
+            },
+            onShareMarkdown = {
+                vm.exportCurrentMarkdown()?.let { md -> Sys.share(context, md) }
+            },
             onExport = { vm.exportJson { text -> Sys.copy(context, text, "会话 JSON 已复制") } },
             onDelete = { confirmDelete = true },
             onUsage = onShowUsage,
             onSettings = onOpenSettings,
+        )
+
+        TtsControlBar(
+            visible = vm.tts.playingId != null || vm.ttsBusyId != null,
+            preparing = vm.tts.preparing || (vm.ttsBusyId != null && vm.tts.playingId == null),
+            paused = vm.tts.paused,
+            voice = vm.settings.ttsVoice,
+            speed = vm.tts.speed,
+            onTogglePause = { vm.toggleTtsPause() },
+            onCycleSpeed = { vm.cycleTtsSpeed() },
+            onStop = { vm.stopSpeak() },
+        )
+
+        ChatSearchBar(
+            visible = searchOpen && conv != null,
+            query = searchQuery,
+            onQueryChange = {
+                searchQuery = it
+                searchCursor = 0
+            },
+            matchCount = searchMatches.size,
+            currentMatch = searchCursor,
+            onPrev = {
+                if (searchMatches.isNotEmpty()) {
+                    searchCursor = (searchCursor - 1 + searchMatches.size) % searchMatches.size
+                    scope.launch { listState.animateScrollToItem(searchMatches[searchCursor]) }
+                }
+            },
+            onNext = {
+                if (searchMatches.isNotEmpty()) {
+                    searchCursor = (searchCursor + 1) % searchMatches.size
+                    scope.launch { listState.animateScrollToItem(searchMatches[searchCursor]) }
+                }
+            },
+            onClose = {
+                searchOpen = false
+                searchQuery = ""
+            },
         )
 
         Box(Modifier.weight(1f)) {
@@ -346,12 +415,16 @@ fun ChatScreen(
                                     isLast = isLast && vm.live == null,
                                     versions = msg.replies.size,
                                     activeVersion = msg.active,
-                                    speaking = vm.tts.playingId == msg.id,
+                                    speaking = vm.tts.playingId == msg.id || vm.ttsBusyId == msg.id,
+                                    starred = msg.starred,
                                     onCopy = { Sys.copy(context, msg.plainText) },
                                     onRegenerate = { vm.regenerate(msg.id) },
                                     onContinue = { vm.continueReply(msg.id) },
                                     onSpeak = { vm.speak(msg.id, msg.plainText) },
                                     onSwitchVersion = { i -> vm.switchVersion(msg.id, i) },
+                                    onToggleStar = { vm.toggleStar(msg.id) },
+                                    onFork = { vm.forkConversation(msg.id) },
+                                    onShare = { Sys.share(context, msg.plainText) },
                                     modifier = itemModifier,
                                 )
                             }
@@ -437,6 +510,8 @@ fun ChatScreen(
             },
             webActive = vm.settings.webSearch,
             onToggleWeb = { vm.updateSettings { s -> s.copy(webSearch = !s.webSearch) } },
+            presetBadge = PromptPresets.byId(conv?.presetId ?: vm.settings.activePresetId).badge,
+            onOpenPresets = { showPresets = true },
             onSend = { send() },
             onStop = {
                 if (vm.settings.haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -483,6 +558,25 @@ fun ChatScreen(
                 vm.deleteChat(conv.id)
             },
             onDismiss = { confirmDelete = false },
+        )
+    }
+
+    if (showPresets) {
+        PromptPresetSheet(
+            activeId = conv?.presetId ?: vm.settings.activePresetId,
+            onSelect = { preset ->
+                vm.selectPreset(preset.id)
+                vm.showToast("已切换角色：${preset.name}")
+            },
+            onDismiss = { showPresets = false },
+        )
+    }
+
+    if (showBookmarks) {
+        BookmarksSheet(
+            items = vm.starredMessages(),
+            onOpenConversation = { id -> vm.openChat(id) },
+            onDismiss = { showBookmarks = false },
         )
     }
 }
@@ -546,8 +640,13 @@ private fun TopBar(
     onMenu: () -> Unit,
     onModels: () -> Unit,
     onNewChat: () -> Unit,
+    onSearch: () -> Unit,
+    onPresets: () -> Unit,
+    onBookmarks: () -> Unit,
     onRename: () -> Unit,
     onPin: () -> Unit,
+    onExportMarkdown: () -> Unit,
+    onShareMarkdown: () -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit,
     onUsage: () -> Unit,
@@ -620,6 +719,11 @@ private fun TopBar(
                     ) {
                         if (hasConversation) {
                             DropdownMenuItem(
+                                text = { Text("会话内搜索") },
+                                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = p.dim) },
+                                onClick = { menu = false; onSearch() },
+                            )
+                            DropdownMenuItem(
                                 text = { Text("重命名") },
                                 leadingIcon = { Icon(Icons.Rounded.DriveFileRenameOutline, null, tint = p.dim) },
                                 onClick = { menu = false; onRename() },
@@ -628,6 +732,16 @@ private fun TopBar(
                                 text = { Text(if (pinned) "取消置顶" else "置顶会话") },
                                 leadingIcon = { Icon(Icons.Rounded.PushPin, null, tint = p.dim) },
                                 onClick = { menu = false; onPin() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("复制 Markdown") },
+                                leadingIcon = { Icon(Icons.Rounded.Description, null, tint = p.dim) },
+                                onClick = { menu = false; onExportMarkdown() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("分享对话") },
+                                leadingIcon = { Icon(Icons.Rounded.Share, null, tint = p.dim) },
+                                onClick = { menu = false; onShareMarkdown() },
                             )
                             DropdownMenuItem(
                                 text = { Text("复制为 JSON") },
@@ -641,6 +755,16 @@ private fun TopBar(
                             )
                             HorizontalDivider(color = p.border, modifier = Modifier.padding(vertical = 4.dp))
                         }
+                        DropdownMenuItem(
+                            text = { Text("角色与提示词工坊") },
+                            leadingIcon = { Icon(Icons.Rounded.AutoAwesome, null, tint = p.primary) },
+                            onClick = { menu = false; onPresets() },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("我的收藏夹") },
+                            leadingIcon = { Icon(Icons.Rounded.Bookmark, null, tint = p.dim) },
+                            onClick = { menu = false; onBookmarks() },
+                        )
                         DropdownMenuItem(
                             text = { Text("用量与余额") },
                             leadingIcon = { Icon(Icons.Rounded.AccountBalanceWallet, null, tint = p.dim) },

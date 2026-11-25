@@ -8,6 +8,7 @@ import com.hotsteel.deepseekhot.data.Block
 import com.hotsteel.deepseekhot.data.ChatMsg
 import com.hotsteel.deepseekhot.data.Citation
 import com.hotsteel.deepseekhot.data.Conversation
+import com.hotsteel.deepseekhot.data.PromptPresets
 import com.hotsteel.deepseekhot.data.Protocol
 import com.hotsteel.deepseekhot.data.Reply
 import com.hotsteel.deepseekhot.data.Source
@@ -46,22 +47,37 @@ sealed interface StreamEvent {
     data object Done : StreamEvent
 }
 
+/**
+ * 严格遵循 DeepSeek 上下文硬盘缓存（Context Caching）官方文档的系统提示词构造器：
+ * 1. 静态系统提示词 + 角色预设 + 语言/地区固定置于最前，保持跨轮次与跨会话字节级一致，
+ *    触发 64-token 缓存单元与「公共前缀检测落盘」；
+ * 2. 开启缓存优化时，日期严格冻结为本会话创建日期（按天），绝不在前缀注入实时 HH:mm，
+ *    彻底消除「每过一分钟整段对话 KV 缓存全部失效」的问题。
+ */
 object Prompts {
 
     fun system(settings: AppSettings, conv: Conversation): String = buildString {
         val custom = settings.systemPrompt.trim()
+        val preset = PromptPresets.byId(conv.presetId ?: settings.activePresetId)
         if (custom.isNotEmpty()) {
             append(custom)
         } else {
-            append("你是 DeepSeek，由深度求索（DeepSeek）创造的 AI 助手。")
-            append("请用准确、简洁、有条理的方式回答，先给结论再给细节；不确定时明确说明，不要编造。")
-            append("使用 Markdown 组织内容，公式用 LaTeX，代码块标注语言。")
+            append(preset.systemPrompt)
         }
         if (settings.includeMeta) {
-            val now = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Shanghai"))
-            val fmt = now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy年M月d日 EEEE HH:mm"))
-            append("\n\n[环境] 当前时间：$fmt（北京时间）。用户所在地：${settings.location}。")
-            append("界面语言：${settings.language}，除非用户另有要求，请用${settings.language}回答。")
+            append("\n\n[偏好] 界面语言：${settings.language}，用户所在地：${settings.location}，除非用户另有要求，请使用${settings.language}回答。")
+            val zone = java.time.ZoneId.of("Asia/Shanghai")
+            if (settings.cacheOptimization) {
+                // 仅使用会话创建日期（按天冻结），保证整个多轮对话的 System Prefix 100% 不变
+                val sessionDate = java.time.Instant.ofEpochMilli(conv.createdAt)
+                    .atZone(zone)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy年M月d日 EEEE"))
+                append(" 会话日期：$sessionDate（北京时间）。")
+            } else {
+                val now = java.time.ZonedDateTime.now(zone)
+                val fmt = now.format(java.time.format.DateTimeFormatter.ofPattern("yyyy年M月d日 EEEE HH:mm"))
+                append(" 当前时间：$fmt（北京时间）。")
+            }
         }
     }
 }
@@ -127,11 +143,10 @@ class ChatEngine(private val api: ApiClient) {
             } else {
                 val text = assistantText(m)
                 if (text.isBlank()) return@forEach
+                // 按 DeepSeek 官方 Thinking Mode 与 Context Caching 文档：
+                // 非客户端 tool_calls 多轮对话无需回传 reasoning_content，剥离后既节省输入 Token，
+                // 又避免切换思考强度时破坏历史前缀导致 KV 缓存失效。
                 val o = JSONObject().put("role", "assistant").put("content", text)
-                if (s.thinking) {
-                    val think = m.reply?.blocks?.filterIsInstance<Block.Thinking>()?.joinToString("") { it.text }
-                    if (!think.isNullOrBlank()) o.put("reasoning_content", think)
-                }
                 messages.put(o)
             }
         }
@@ -144,6 +159,7 @@ class ChatEngine(private val api: ApiClient) {
             put("model", s.model)
             put("messages", messages)
             put("stream", true)
+            put("stream_options", JSONObject().put("include_usage", true))
             if (s.thinking) {
                 put("thinking", JSONObject().put("type", "enabled"))
                 put("reasoning_effort", s.effort)
@@ -288,9 +304,44 @@ class ChatEngine(private val api: ApiClient) {
                 )
             )
         }
+        // 在 Anthropic 协议下开启缓存优化时，为历史倒数第二条消息打上 ephemeral 缓存断点，
+        // 兼容 DeepSeek 官方硬盘缓存与 OpenCode/Anthropic 网关的 Prompt Caching。
+        if (s.cacheOptimization && messages.length() >= 2) {
+            val targetIdx = messages.length() - 2
+            val prevMsg = messages.optJSONObject(targetIdx)
+            val prevContent = prevMsg?.opt("content")
+            if (prevContent is String && prevContent.isNotBlank()) {
+                prevMsg.put(
+                    "content",
+                    JSONArray().put(
+                        JSONObject()
+                            .put("type", "text")
+                            .put("text", prevContent)
+                            .put("cache_control", JSONObject().put("type", "ephemeral"))
+                    )
+                )
+            } else if (prevContent is JSONArray && prevContent.length() > 0) {
+                prevContent.optJSONObject(prevContent.length() - 1)
+                    ?.put("cache_control", JSONObject().put("type", "ephemeral"))
+            }
+        }
         return JSONObject().apply {
             put("model", s.model)
-            if (system.isNotBlank()) put("system", system)
+            if (system.isNotBlank()) {
+                if (s.cacheOptimization) {
+                    put(
+                        "system",
+                        JSONArray().put(
+                            JSONObject()
+                                .put("type", "text")
+                                .put("text", system)
+                                .put("cache_control", JSONObject().put("type", "ephemeral"))
+                        )
+                    )
+                } else {
+                    put("system", system)
+                }
+            }
             put("messages", messages)
             put("stream", true)
             put("thinking", JSONObject().put("type", if (s.thinking) "enabled" else "disabled"))
@@ -569,6 +620,7 @@ class ChatEngine(private val api: ApiClient) {
                                     url = c?.optString("url"),
                                     title = c?.optJSONObject("content")?.optString("title"),
                                     kind = block.optString("kind", "read_link"),
+                                    signature = block.optString("signature").takeIf { it.isNotBlank() },
                                 )
                             )
                         }
