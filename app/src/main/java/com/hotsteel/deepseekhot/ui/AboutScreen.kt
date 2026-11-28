@@ -40,6 +40,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotsteel.deepseekhot.BuildConfig
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Sys
 
@@ -78,7 +80,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     letterSpacing = (-0.3).sp,
                 )
                 Text(
-                    "v${BuildConfig.VERSION_NAME} · Android · Kotlin / Compose",
+                    "v${BuildConfig.VERSION_NAME} · Liquid Glass · Kotlin / Compose",
                     color = p.faint,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(top = 4.dp),
@@ -111,6 +113,8 @@ fun AboutScreen(onBack: () -> Unit) {
                         "自动获取模型列表，可调思考强度（none / low / high / max）",
                         "实时余额、Token 用量、首字延迟与生成速度",
                         "语音输入（ASR）与朗读回答（TTS）",
+                        "完整 Liquid Glass 液态玻璃折射（支持完整/轻量/关闭三档性能调节）",
+                        "全能富文本渲染：KaTeX 数学与化学公式、Mermaid/SVG/HTML/Chart/DOT/ASCII 图表与语法高亮",
                         "会话分支、编辑重发、续写、导入导出",
                     ),
                 )
@@ -153,9 +157,7 @@ private fun AuthorCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(p.surface)
-            .border(1.dp, p.border, shape)
+            .liquidGlass(backdrop = LocalAmbientBackdrop.current, cornerRadius = 20.dp)
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -241,9 +243,7 @@ private fun InfoCard(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(p.surface)
-            .border(1.dp, p.border, shape)
+            .liquidGlass(backdrop = LocalAmbientBackdrop.current, cornerRadius = 20.dp)
             .padding(16.dp),
     ) {
         Text(title, color = p.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)

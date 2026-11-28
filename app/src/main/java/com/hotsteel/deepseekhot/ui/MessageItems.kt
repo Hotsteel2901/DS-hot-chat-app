@@ -81,6 +81,8 @@ import com.hotsteel.deepseekhot.data.ChatMsg
 import com.hotsteel.deepseekhot.data.Citation
 import com.hotsteel.deepseekhot.data.Source
 import com.hotsteel.deepseekhot.data.Usage
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Fmt
 import com.hotsteel.deepseekhot.util.Sys
@@ -109,12 +111,18 @@ fun UserMessageItem(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.End,
     ) {
-        val bubbleShape = RoundedCornerShape(20.dp, 20.dp, 6.dp, 20.dp)
         Column(
             modifier = Modifier
                 .widthIn(max = LocalConfiguration.current.screenWidthDp.dp * 0.82f)
-                .clip(bubbleShape)
-                .background(p.bubble)
+                .liquidGlass(
+                    backdrop = LocalAmbientBackdrop.current,
+                    cornerRadius = 20.dp,
+                    tint = p.primary,
+                    blurRadius = 12.dp,
+                    refractionHeight = 10.dp,
+                    refractionAmount = 16.dp,
+                    surfaceAlpha = if (p.isDark) 0.42f else 0.52f,
+                )
                 .combinedClickable(
                     onClick = {},
                     onLongClick = onEdit,
@@ -302,7 +310,7 @@ fun AssistantMessageItem(
                 is Block.Text -> if (block.text.isNotBlank()) {
                     Column(Modifier.padding(bottom = 4.dp)) {
                         SelectionContainer {
-                            MarkdownView(block.text, onLink = { Sys.openUrl(context, it) })
+                            MarkdownView(block.text, streaming = streaming, onLink = { Sys.openUrl(context, it) })
                         }
                         if (streaming && index == blocks.lastIndex) {
                             BlinkingCursor()
@@ -399,9 +407,14 @@ private fun VersionSwitcher(active: Int, total: Int, onSwitch: (Int) -> Unit) {
     val p = LocalPalette.current
     Row(
         Modifier
-            .clip(CircleShape)
-            .background(p.surfaceAlt)
-            .border(1.dp, p.border, CircleShape)
+            .liquidGlass(
+                backdrop = LocalAmbientBackdrop.current,
+                isCapsule = true,
+                blurRadius = 8.dp,
+                refractionHeight = 6.dp,
+                refractionAmount = 12.dp,
+                showShadow = false,
+            )
             .padding(horizontal = 4.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -468,11 +481,16 @@ private fun ThinkingCard(block: Block.Thinking, streaming: Boolean) {
     ) {
         Row(
             Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .background(p.surfaceAlt)
-                .border(1.dp, p.border, RoundedCornerShape(12.dp))
+                .liquidGlass(
+                    backdrop = LocalAmbientBackdrop.current,
+                    isCapsule = true,
+                    blurRadius = 10.dp,
+                    refractionHeight = 8.dp,
+                    refractionAmount = 14.dp,
+                    showShadow = false,
+                )
                 .clickable { expanded = !expanded }
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = 13.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (open) {
@@ -523,13 +541,11 @@ private fun ThinkingCard(block: Block.Thinking, streaming: Boolean) {
                         .background(p.border)
                 )
                 Spacer(Modifier.width(12.dp))
-                SelectionContainer {
-                    Text(
+                SelectionContainer(Modifier.weight(1f)) {
+                    MarkdownView(
                         text = block.text.trim(),
-                        color = p.dim,
-                        fontSize = 13.5.sp,
-                        lineHeight = 22.sp,
-                        modifier = Modifier.weight(1f),
+                        streaming = streaming,
+                        isSecondary = true,
                     )
                 }
             }
@@ -572,9 +588,13 @@ private fun ToolCard(block: Block.Tool) {
         Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp)
-            .clip(shape)
-            .background(p.surfaceAlt)
-            .border(1.dp, p.border, shape)
+            .liquidGlass(
+                backdrop = LocalAmbientBackdrop.current,
+                cornerRadius = 16.dp,
+                blurRadius = 10.dp,
+                refractionHeight = 10.dp,
+                refractionAmount = 16.dp,
+            )
             .clickable { expanded = !expanded }
             .padding(horizontal = 12.dp, vertical = 10.dp)
             .animateContentSize(),

@@ -4,20 +4,22 @@
 # 统一升级；新增依赖请只在这里加版本号，不要写死在 build.gradle.kts 里。
 
 [versions]
-agp = "8.7.2"
-kotlin = "2.0.21"
-composeBom = "2024.10.01"
-coreKtx = "1.13.1"
-activityCompose = "1.9.3"
+agp = "9.1.1"
+kotlin = "2.4.10"
+composeBom = "2026.06.01"
+coreKtx = "1.18.0"
+activityCompose = "1.10.1"
 lifecycle = "2.8.7"
 datastore = "1.1.1"
-serializationJson = "1.7.3"
-coroutines = "1.9.0"
+serializationJson = "1.8.0"
+coroutines = "1.10.2"
 okhttp = "4.12.0"
 coil = "2.7.0"
+kyantBackdrop = "2.0.1"
+kyantShapes = "1.2.1"
 junit = "4.13.2"
 androidxTestCore = "1.6.1"
-robolectric = "4.13"
+robolectric = "4.14.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -36,6 +38,9 @@ compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 
+kyant-backdrop = { group = "io.github.kyant0", name = "backdrop", version.ref = "kyantBackdrop" }
+kyant-shapes = { group = "io.github.kyant0", name = "shapes", version.ref = "kyantShapes" }
+
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serializationJson" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
@@ -48,6 +53,5 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
-kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }

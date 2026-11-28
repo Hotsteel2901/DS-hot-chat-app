@@ -37,6 +37,7 @@ private object K {
     val location = stringPreferencesKey("location")
     val themeMode = intPreferencesKey("theme_mode")
     val dynamicColor = booleanPreferencesKey("dynamic_color")
+    val liquidGlassMode = intPreferencesKey("liquid_glass_mode")
     val ttsVoice = stringPreferencesKey("tts_voice")
     val ttsSpeed = floatPreferencesKey("tts_speed")
     val ttsStreamWs = booleanPreferencesKey("tts_stream_ws")
@@ -67,6 +68,7 @@ class SettingsStore(private val context: Context) {
             location = p[K.location] ?: defaults.location,
             themeMode = p[K.themeMode] ?: defaults.themeMode,
             dynamicColor = p[K.dynamicColor] ?: defaults.dynamicColor,
+            liquidGlassMode = (p[K.liquidGlassMode] ?: defaults.liquidGlassMode).coerceIn(0, 2),
             ttsVoice = p[K.ttsVoice] ?: defaults.ttsVoice,
             ttsSpeed = (p[K.ttsSpeed] ?: defaults.ttsSpeed).coerceIn(0.75f, 2.0f),
             ttsStreamWs = p[K.ttsStreamWs] ?: defaults.ttsStreamWs,
@@ -95,6 +97,7 @@ class SettingsStore(private val context: Context) {
             p[K.location] = s.location
             p[K.themeMode] = s.themeMode
             p[K.dynamicColor] = s.dynamicColor
+            p[K.liquidGlassMode] = s.liquidGlassMode
             p[K.ttsVoice] = s.ttsVoice
             p[K.ttsSpeed] = s.ttsSpeed
             p[K.ttsStreamWs] = s.ttsStreamWs

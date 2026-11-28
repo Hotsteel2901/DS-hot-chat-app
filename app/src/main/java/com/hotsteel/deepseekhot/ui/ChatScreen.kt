@@ -91,6 +91,8 @@ import com.hotsteel.deepseekhot.StreamMode
 import com.hotsteel.deepseekhot.data.Block
 import com.hotsteel.deepseekhot.data.ChatMsg
 import com.hotsteel.deepseekhot.data.PromptPresets
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Fmt
 import com.hotsteel.deepseekhot.util.Sys
@@ -385,7 +387,7 @@ fun ChatScreen(
                     verticalArrangement = Arrangement.spacedBy(22.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    itemsIndexed(conv.messages, key = { _, m -> m.id }) { index, msg ->
+                    itemsIndexed(conv.messages, key = { idx, m -> "${m.id}_$idx" }) { index, msg ->
                         val isLast = index == conv.messages.lastIndex
                         val live = vm.live
                         val hideForRegen = live != null &&
@@ -454,10 +456,14 @@ fun ChatScreen(
                 ) {
                     Tappable(
                         Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(p.surface)
-                            .border(1.dp, p.border, CircleShape),
+                            .size(40.dp)
+                            .liquidGlass(
+                                backdrop = LocalAmbientBackdrop.current,
+                                isCapsule = true,
+                                blurRadius = 12.dp,
+                                refractionHeight = 10.dp,
+                                refractionAmount = 18.dp,
+                            ),
                         onClick = {
                             autoFollow = true
                             scope.launch { animateToBottom(listState) }
@@ -655,7 +661,20 @@ private fun TopBar(
 ) {
     val p = LocalPalette.current
     var menu by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxWidth().background(p.bg).statusBarsPadding()) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .liquidGlass(
+                backdrop = LocalAmbientBackdrop.current,
+                cornerRadius = 22.dp,
+                blurRadius = 14.dp,
+                refractionHeight = 12.dp,
+                refractionAmount = 20.dp,
+                surfaceAlpha = if (p.isDark) 0.50f else 0.64f,
+            ),
+    ) {
         Box(
             Modifier
                 .fillMaxWidth()

@@ -65,4 +65,31 @@ class MarkdownParserTest {
             assertTrue(blocks.isNotEmpty())
         }
     }
+
+    @Test
+    fun mathBlockDelimitersAndCalloutAndTasks() {
+        val md = """
+            \[
+            E = mc^2
+            \]
+
+            \begin{align}
+            a + b &= c
+            \end{align}
+
+            > [!TIP]
+            > 支持完整公式与图表
+
+            - [x] 已完成
+            - [ ] 待完成
+
+            ![示例图](https://example.com/a.png)
+        """.trimIndent()
+        val blocks = MarkdownParser.parse(md)
+        assertTrue(blocks.any { it is MdBlock.Math && it.text.contains("E = mc^2") })
+        assertTrue(blocks.any { it is MdBlock.Math && it.text.contains("\\begin{align}") })
+        assertTrue(blocks.any { it is MdBlock.Callout && it.kind == "TIP" })
+        assertTrue(blocks.any { it is MdBlock.TaskList && it.items.size == 2 && it.items[0].checked && !it.items[1].checked })
+        assertTrue(blocks.any { it is MdBlock.Image && it.alt == "示例图" })
+    }
 }

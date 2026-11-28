@@ -61,6 +61,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotsteel.deepseekhot.R
 import com.hotsteel.deepseekhot.ui.theme.BrandBlue
+import com.hotsteel.deepseekhot.ui.liquid.LiquidGlassMode
+import com.hotsteel.deepseekhot.ui.liquid.LocalChromeBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.LocalLiquidMode
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 
 /** 纯色背景。旧版的极光渐变动画会持续重绘整屏，既耗电也和简洁的视觉方向冲突，已移除。 */
@@ -70,7 +74,8 @@ fun AppBackground(
     color: Color = LocalPalette.current.bg,
     content: @Composable BoxScope.() -> Unit,
 ) {
-    Box(modifier = modifier.background(color), content = content)
+    val bg = if (LocalLiquidMode.current == LiquidGlassMode.OFF) color else Color.Transparent
+    Box(modifier = modifier.background(bg), content = content)
 }
 
 /** 品牌标识：全新深海极夜渐变圆底 + 跃动鲸尾极光脉冲图腾。 */
@@ -150,9 +155,15 @@ fun PillToggle(
     Row(
         modifier
             .height(34.dp)
-            .clip(CircleShape)
-            .background(bg)
-            .border(1.dp, stroke, CircleShape)
+            .liquidGlass(
+                backdrop = LocalChromeBackdrop.current,
+                isCapsule = true,
+                tint = if (active) p.primary else Color.Unspecified,
+                blurRadius = 8.dp,
+                refractionHeight = 8.dp,
+                refractionAmount = 14.dp,
+                showShadow = false,
+            )
             .clickable(role = Role.Switch, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,

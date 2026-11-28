@@ -75,7 +75,18 @@ import com.hotsteel.deepseekhot.AppViewModel
 import com.hotsteel.deepseekhot.BuildConfig
 import com.hotsteel.deepseekhot.data.Conversation
 import com.hotsteel.deepseekhot.ui.theme.DeepSeekHotTheme
+import androidx.compose.runtime.CompositionLocalProvider
+import com.hotsteel.deepseekhot.ui.liquid.DeepSeekLiquidWallpaper
+import com.hotsteel.deepseekhot.ui.liquid.LiquidChromeBox
+import com.hotsteel.deepseekhot.ui.liquid.LiquidGlassButton
+import com.hotsteel.deepseekhot.ui.liquid.LiquidGlassMode
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.LocalChromeBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.LocalLiquidMode
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.launch
 
 private enum class Screen { Chat, Settings, About }
@@ -89,7 +100,9 @@ fun AppRoot(vm: AppViewModel) {
         else -> systemDark
     }
     DeepSeekHotTheme(dark = dark, dynamic = vm.settings.dynamicColor) {
-        RootContent(vm)
+        CompositionLocalProvider(LocalLiquidMode provides vm.settings.liquidGlassMode) {
+            RootContent(vm)
+        }
     }
 }
 
@@ -128,7 +141,22 @@ private fun RootContent(vm: AppViewModel) {
         }
     }
 
-    AppBackground(Modifier.fillMaxSize()) {
+    val ambientBackdrop = rememberLayerBackdrop()
+    val chromeBackdrop = rememberLayerBackdrop()
+    val liquidOn = LocalLiquidMode.current != LiquidGlassMode.OFF
+
+    Box(Modifier.fillMaxSize()) {
+        DeepSeekLiquidWallpaper(
+            modifier = Modifier
+                .fillMaxSize()
+                .layerBackdrop(ambientBackdrop),
+        )
+
+        CompositionLocalProvider(
+            LocalAmbientBackdrop provides ambientBackdrop,
+            LocalChromeBackdrop provides chromeBackdrop,
+        ) {
+        Box(Modifier.fillMaxSize()) {
         ModalNavigationDrawer(
             drawerState = drawerState,
             // 只在抽屉打开时允许手势，避免和消息列表、代码块的横向滑动冲突
@@ -136,9 +164,20 @@ private fun RootContent(vm: AppViewModel) {
             scrimColor = Color.Black.copy(alpha = if (p.isDark) 0.5f else 0.32f),
             drawerContent = {
                 ModalDrawerSheet(
-                    drawerContainerColor = p.bgAlt,
-                    drawerShape = RoundedCornerShape(topEnd = 20.dp, bottomEnd = 20.dp),
-                    modifier = Modifier.width(300.dp),
+                    drawerContainerColor = if (liquidOn) Color.Transparent else p.bgAlt,
+                    drawerShape = RoundedCornerShape(topEnd = 26.dp, bottomEnd = 26.dp),
+                    modifier = Modifier
+                        .width(306.dp)
+                        .then(
+                            if (liquidOn) Modifier.liquidGlass(
+                                backdrop = chromeBackdrop,
+                                cornerRadius = 26.dp,
+                                blurRadius = 18.dp,
+                                refractionHeight = 14.dp,
+                                refractionAmount = 22.dp,
+                                surfaceAlpha = if (p.isDark) 0.62f else 0.72f,
+                            ) else Modifier,
+                        ),
                 ) {
                     DrawerContent(
                         vm = vm,
@@ -215,12 +254,20 @@ private fun RootContent(vm: AppViewModel) {
                 .navigationBarsPadding()
                 .padding(bottom = if (screen == Screen.Chat) 150.dp else 20.dp, start = 20.dp, end = 20.dp),
         ) { data ->
-            Snackbar(
-                snackbarData = data,
-                shape = RoundedCornerShape(14.dp),
-                containerColor = if (p.isDark) p.surfaceHigh else Color(0xFF26282D),
-                contentColor = Color.White,
-            )
+            LiquidChromeBox(
+                cornerRadius = 18.dp,
+                tint = p.primary,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = data.visuals.message,
+                    color = p.text,
+                    fontSize = 13.5.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+            }
+        }
+        }
         }
     }
 
@@ -297,19 +344,14 @@ private fun DrawerContent(
             )
         }
 
-        Tappable(
-            Modifier
-                .fillMaxWidth()
-                .height(44.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(p.primarySoft),
+        LiquidGlassButton(
             onClick = onNew,
+            tint = p.primary,
+            height = 44.dp,
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Row(Modifier.align(Alignment.Center), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.AddComment, null, tint = p.primary, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("开启新对话", color = p.primary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            }
+            Icon(Icons.Rounded.AddComment, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Text("开启新对话", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
 
         Spacer(Modifier.height(10.dp))

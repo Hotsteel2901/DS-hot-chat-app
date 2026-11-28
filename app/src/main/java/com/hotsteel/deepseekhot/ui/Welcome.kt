@@ -51,6 +51,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Fmt
 import kotlinx.coroutines.delay
@@ -153,8 +155,11 @@ private fun KeyBanner(onSettings: () -> Unit) {
     Tappable(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(p.primarySoft),
+            .liquidGlass(
+                backdrop = LocalAmbientBackdrop.current,
+                cornerRadius = 18.dp,
+                tint = p.primary,
+            ),
         scaleDown = 0.98f,
         onClick = onSettings,
     ) {
@@ -196,9 +201,10 @@ private fun SuggestionRow(item: Suggestion, onClick: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .clip(shape)
-            .background(p.surface)
-            .border(1.dp, p.border, shape),
+            .liquidGlass(
+                backdrop = LocalAmbientBackdrop.current,
+                cornerRadius = 18.dp,
+            ),
         scaleDown = 0.98f,
         onClick = onClick,
     ) {

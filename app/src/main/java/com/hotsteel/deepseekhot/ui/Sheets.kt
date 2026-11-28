@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.sp
 import com.hotsteel.deepseekhot.AppViewModel
 import com.hotsteel.deepseekhot.data.ModelInfo
 import com.hotsteel.deepseekhot.data.Protocol
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Fmt
 import com.hotsteel.deepseekhot.util.Pricing
@@ -88,9 +90,13 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
                 Tappable(
                     Modifier
                         .size(38.dp)
-                        .clip(CircleShape)
-                        .background(p.surfaceAlt)
-                        .border(1.dp, p.border, CircleShape),
+                        .liquidGlass(
+                            backdrop = LocalAmbientBackdrop.current,
+                            isCapsule = true,
+                            blurRadius = 10.dp,
+                            refractionHeight = 8.dp,
+                            refractionAmount = 14.dp,
+                        ),
                     onClick = { vm.refreshModels() },
                 ) {
                     val transition = rememberInfiniteTransition(label = "spin")
@@ -163,9 +169,13 @@ fun ModelSheet(vm: AppViewModel, onDismiss: () -> Unit) {
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(p.surfaceAlt)
-                    .border(1.dp, p.border, RoundedCornerShape(12.dp))
+                    .liquidGlass(
+                        backdrop = LocalAmbientBackdrop.current,
+                        cornerRadius = 14.dp,
+                        blurRadius = 10.dp,
+                        refractionHeight = 8.dp,
+                        refractionAmount = 14.dp,
+                    )
                     .padding(3.dp),
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
             ) {

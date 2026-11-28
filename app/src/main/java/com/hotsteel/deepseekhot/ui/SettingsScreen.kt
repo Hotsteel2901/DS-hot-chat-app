@@ -63,6 +63,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hotsteel.deepseekhot.AppViewModel
 import com.hotsteel.deepseekhot.BuildConfig
+import com.hotsteel.deepseekhot.ui.liquid.LiquidGlassButton
+import com.hotsteel.deepseekhot.ui.liquid.LiquidGlassToggle
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Fmt
 import java.time.LocalDate
@@ -394,6 +398,25 @@ fun SettingsScreen(
                             ) { vm.updateSettings { st -> st.copy(themeMode = index) } }
                         }
                     }
+                    Spacer(Modifier.height(12.dp))
+                    SectionLabel("液态玻璃效果（AndroidLiquidGlass）")
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("完整折射", "轻量性能", "关闭").forEachIndexed { index, label ->
+                            SelectableTile(
+                                label = label,
+                                selected = s.liquidGlassMode == index,
+                                modifier = Modifier.weight(1f),
+                            ) { vm.updateSettings { st -> st.copy(liquidGlassMode = index) } }
+                        }
+                    }
+                    Text(
+                        "完整折射启用实时光学透镜与高光；轻量性能仅保留低开销模糊与高光，兼顾续航与高刷流畅度。",
+                        color = p.faint,
+                        fontSize = 11.5.sp,
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(top = 6.dp),
+                    )
                     Spacer(Modifier.height(8.dp))
                     ToggleRow("动态取色", "跟随系统壁纸调整强调色（Android 12+）", s.dynamicColor) {
                         vm.updateSettings { st -> st.copy(dynamicColor = it) }
@@ -466,13 +489,10 @@ fun SettingsCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val p = LocalPalette.current
-    val shape = RoundedCornerShape(16.dp)
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(shape)
-            .background(p.surface)
-            .border(1.dp, p.border, shape)
+            .liquidGlass(backdrop = LocalAmbientBackdrop.current, cornerRadius = 22.dp)
             .padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -529,16 +549,9 @@ fun ToggleRow(label: String, desc: String, checked: Boolean, onChange: (Boolean)
             Text(desc, color = p.faint, fontSize = 11.5.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 2.dp))
         }
         Spacer(Modifier.width(12.dp))
-        Switch(
+        LiquidGlassToggle(
             checked = checked,
             onCheckedChange = onChange,
-            colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.White,
-                checkedTrackColor = p.primary,
-                uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = p.surfaceHigh,
-                uncheckedBorderColor = p.border,
-            ),
         )
     }
 }
@@ -546,19 +559,17 @@ fun ToggleRow(label: String, desc: String, checked: Boolean, onChange: (Boolean)
 @Composable
 fun PrimaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val p = LocalPalette.current
-    Tappable(
-        modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(p.primary),
+    LiquidGlassButton(
         onClick = onClick,
+        tint = p.primary,
+        height = 42.dp,
+        modifier = modifier,
     ) {
         Text(
             text,
             color = Color.White,
             fontSize = 13.5.sp,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.align(Alignment.Center),
         )
     }
 }
@@ -566,21 +577,16 @@ fun PrimaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> Un
 @Composable
 fun SecondaryButton(text: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val p = LocalPalette.current
-    val shape = RoundedCornerShape(12.dp)
-    Tappable(
-        modifier
-            .height(42.dp)
-            .clip(shape)
-            .background(p.surfaceAlt)
-            .border(1.dp, p.border, shape),
+    LiquidGlassButton(
         onClick = onClick,
+        height = 42.dp,
+        modifier = modifier,
     ) {
         Text(
             text,
             color = p.text,
             fontSize = 13.5.sp,
             fontWeight = FontWeight.Medium,
-            modifier = Modifier.align(Alignment.Center),
         )
     }
 }

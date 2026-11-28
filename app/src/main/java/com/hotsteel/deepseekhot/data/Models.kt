@@ -300,6 +300,8 @@ data class AppSettings(
     val location: String = "中国",
     val themeMode: Int = 0, // 0 跟随系统 1 浅色 2 深色
     val dynamicColor: Boolean = false,
+    /** 液态玻璃档位：0 完整光学折射 1 轻量性能模式 2 关闭（纯净平面） */
+    val liquidGlassMode: Int = 0,
     val ttsVoice: String = "stella",
     /** 朗读倍速：0.75 / 1.0 / 1.25 / 1.5 / 2.0 */
     val ttsSpeed: Float = 1.0f,

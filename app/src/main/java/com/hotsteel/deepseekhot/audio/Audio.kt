@@ -70,7 +70,8 @@ class VoiceRecorder(private val context: Context) {
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
-        val bufferSize = maxOf(min, SAMPLE_RATE / 2)
+        val safeMin = if (min > 0) min else SAMPLE_RATE / 2
+        val bufferSize = maxOf(safeMin, SAMPLE_RATE / 2)
         val rec = try {
             AudioRecord(
                 MediaRecorder.AudioSource.VOICE_RECOGNITION,
@@ -214,6 +215,7 @@ class VoiceRecorder(private val context: Context) {
 object TtsTextPrep {
 
     private val fencedCode = Regex("```[\\s\\S]*?```")
+    private val displayMath = Regex("\\$\\$[\\s\\S]*?\\$\\$|\\\\\\[[\\s\\S]*?\\\\\\]|\\\\begin\\{[^}]+\\}[\\s\\S]*?\\\\end\\{[^}]+\\}")
     private val inlineUrl = Regex("https?://\\S+")
     private val multiSpace = Regex("[ \\t]{2,}")
 
@@ -229,6 +231,9 @@ object TtsTextPrep {
     fun cleanForSpeech(raw: String): String {
         var s = raw
             .replace(fencedCode, "（此处为代码块，已跳过）")
+            .replace(displayMath, "（此处为数学公式，已跳过）")
+            .replace(Regex("\\$\\s*([^$\\n]+?)\\s*\\$"), "$1")
+            .replace(Regex("\\\\\\(([^\\n]+?)\\\\\\)"), "$1")
             .replace(inlineUrl, "")
             .replace(Regex("`([^`]+)`"), "$1")
             .replace(Regex("!\\[[^\\]]*]\\([^)]*\\)"), "")

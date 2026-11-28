@@ -120,6 +120,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         private set
 
     private var streamJob: Job? = null
+    private val deletedIds = java.util.Collections.synchronizedSet(mutableSetOf<String>())
     private var ttsJob: Job? = null
 
     init {
@@ -175,6 +176,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun deleteChat(id: String) {
+        deletedIds.add(id)
         if (current?.id == id) {
             stopStreaming()
             live = null
@@ -357,6 +359,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         if (!streaming) return
         stopping = true
         api.stop()
+        streamJob?.cancel()
     }
 
     private fun startStream(
@@ -536,6 +539,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun commit(lr: LiveReply, source: Conversation) {
+        if (source.id in deletedIds) return
         val conv = conversations.firstOrNull { it.id == source.id }
             ?: current?.takeIf { it.id == source.id }
             ?: source

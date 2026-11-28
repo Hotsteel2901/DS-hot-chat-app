@@ -68,6 +68,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -97,6 +98,8 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.hotsteel.deepseekhot.audio.VoiceRecorder
 import com.hotsteel.deepseekhot.data.Attachment
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import kotlinx.coroutines.launch
 import java.io.File
@@ -137,6 +140,9 @@ fun Composer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val recorder = remember { VoiceRecorder(context) }
+    DisposableEffect(recorder) {
+        onDispose { recorder.cancel() }
+    }
     var field by remember { mutableStateOf(TextFieldValue(text)) }
     var attachMenu by remember { mutableStateOf(false) }
     var showPermissionDialog by remember { mutableStateOf(false) }
@@ -209,19 +215,20 @@ fun Composer(
             },
         )
 
-        val shape = RoundedCornerShape(24.dp)
         Column(
             Modifier
                 .widthIn(max = 760.dp)
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 6.dp)
-                .then(
-                    if (p.isDark) Modifier
-                    else Modifier.shadow(10.dp, shape, ambientColor = Color(0x14000000), spotColor = Color(0x1A1F3A8A))
-                )
-                .clip(shape)
-                .background(p.surface)
-                .border(1.dp, p.border, shape),
+                .liquidGlass(
+                    backdrop = LocalAmbientBackdrop.current,
+                    cornerRadius = 26.dp,
+                    blurRadius = 16.dp,
+                    refractionHeight = 14.dp,
+                    refractionAmount = 24.dp,
+                    chromaticAberration = true,
+                    surfaceAlpha = if (p.isDark) 0.54f else 0.68f,
+                ),
         ) {
             AnimatedVisibility(
                 visible = attachments.isNotEmpty(),

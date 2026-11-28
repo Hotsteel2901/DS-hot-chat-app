@@ -64,6 +64,8 @@ import com.hotsteel.deepseekhot.data.ChatMsg
 import com.hotsteel.deepseekhot.data.Conversation
 import com.hotsteel.deepseekhot.data.PromptPreset
 import com.hotsteel.deepseekhot.data.PromptPresets
+import com.hotsteel.deepseekhot.ui.liquid.LocalAmbientBackdrop
+import com.hotsteel.deepseekhot.ui.liquid.liquidGlass
 import com.hotsteel.deepseekhot.ui.theme.LocalPalette
 import com.hotsteel.deepseekhot.util.Fmt
 import com.hotsteel.deepseekhot.util.Sys
@@ -112,9 +114,14 @@ fun TtsControlBar(
                 Modifier
                     .widthIn(max = 760.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(p.primarySoft)
-                    .border(1.dp, p.primary.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
+                    .liquidGlass(
+                        backdrop = LocalAmbientBackdrop.current,
+                        cornerRadius = 18.dp,
+                        tint = p.primary,
+                        blurRadius = 12.dp,
+                        refractionHeight = 10.dp,
+                        refractionAmount = 16.dp,
+                    )
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -210,9 +217,13 @@ fun ChatSearchBar(
                 Modifier
                     .widthIn(max = 760.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(p.surfaceAlt)
-                    .border(1.dp, p.border, RoundedCornerShape(14.dp))
+                    .liquidGlass(
+                        backdrop = LocalAmbientBackdrop.current,
+                        cornerRadius = 18.dp,
+                        blurRadius = 12.dp,
+                        refractionHeight = 10.dp,
+                        refractionAmount = 16.dp,
+                    )
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
