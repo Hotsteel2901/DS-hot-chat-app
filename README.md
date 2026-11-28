@@ -1,11 +1,11 @@
 # DeepSeek Hot
 
-遵循 [DeepSeek 构建 Chatbot 指南](https://api-docs.deepseek.com/zh-cn/guides/build_a_chatbot) 打造的第三方原生 Android 客户端。基于官方开源示例 [deepseek-ai/chat-demo](https://github.com/deepseek-ai/chat-demo) 的完整能力集合，采用 **Kotlin + Jetpack Compose** 实现极简现代的交互界面，并加入模型自动发现、思考强度调节、实时余额与速度统计、三协议切换及 OpenCode 网关兼容等增强能力。
+遵循 [DeepSeek 构建 Chatbot 指南](https://api-docs.deepseek.com/zh-cn/guides/build_a_chatbot) 打造的第三方原生 Android 客户端。基于官方开源示例 [deepseek-ai/chat-demo](https://github.com/deepseek-ai/chat-demo) 的完整能力集合，采用 **Kotlin 2.4 + Jetpack Compose + [AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)** 打造全应用实时光学折射液态玻璃体验，内置 **KaTeX / Mermaid / SVG / HTML / Chart.js / Graphviz / 语法高亮** 全能富文本渲染引擎、WebSocket 24kHz PCM 流式朗读、上下文硬盘缓存极致优化与三协议自由切换。
 
-- 当前版本：`v1.3.0`（`versionCode = 4`）
+- 当前版本：`v3.0.0`（`versionCode = 6`） · [下载最新 Release APK](https://github.com/Hotsteel2901/DS-hot-chat-app/releases/tag/v3.0.0)
 - 包名：`com.hotsteel.deepseekhot`
-- 最低系统：Android 8.0（API 26），目标 API 35
-- 技术栈：Kotlin 2.0 / Compose Material 3 / OkHttp / DataStore / kotlinx.serialization，无 JNI、无 XML 布局
+- 最低系统：Android 8.0（API 26），编译 SDK 37，目标 API 35
+- 技术栈：Kotlin 2.4.10 / AGP 9.1.1 / Gradle 9.3.1 / Compose Material 3 / `io.github.kyant0:backdrop:2.0.1` + `shapes:1.2.1` / OkHttp / DataStore / kotlinx.serialization / Coil
 
 ## 界面预览
 
@@ -15,104 +15,69 @@
   <img src="docs/screenshot-settings.png" width="250" />
 </p>
 
-> 截图为 Robolectric 真实渲染（Compose 原生绘制），展示 v1.3.0 浅色 / 深色双套手调界面与重绘的品牌图标。
+> 展示 v3.0.0 完整 Liquid Glass 液态玻璃视觉体系（极光背景 + 实时光学折射卡片 + 悬浮输入卡 + KaTeX 公式 / Mermaid 图表 / Kotlin 语法高亮 / 三档性能调节设置页）。
 
-## v1.3.0 重构亮点
+## v3.0.0 更新亮点
 
-- **极简现代视觉重构**：对齐 DeepSeek 官方网页端与 Chatbot 指南风格，移除高耗电的动态渐变背景与玻璃拟态，改为纯净灰阶层级 + 1dp 细描边 + 品牌蓝（`#4D6BFE`），并修复冷启动浅/深色主题窗口底色闪屏。
-- **全新重绘应用图标**：雕塑感对话气泡 + 双星芒镂空（`evenOdd` 矢量路径），完整适配 Android 自适应图标（66dp 安全区）与 Android 13+ Monochrome 单色主题图标，并与应用内品牌标识统一。
-- **输入框与对话体验升级**：悬浮大圆角输入卡内嵌「深度思考」「联网搜索」胶囊开关；顶栏标题居中并支持一键呼出模型/协议面板；用户消息支持一键复制与编辑；思考块采用经典药丸折叠头 + 左侧竖向引导线；代码块增加「已复制」状态反馈，宽表格支持横向滚动与行内 Markdown。
-- **流式自动跟随滚动修复**：修复流式思考阶段不滚动、手势打断 `scrollBy` 触发 `MutationInterruptedException` 导致自动跟随永久失效、`afterContentPadding` 漏算导致回底按钮闪烁、键盘弹出遮挡底部、以及回看历史时回答结束强行拉回底部等问题。
-- **抽屉与设置页打磨**：会话抽屉支持按时间分组（今天 / 昨天 / 7 天内 / 30 天内 / 更早）、长按快捷操作（置顶 / 重命名 / 删除二次确认）与清除搜索；设置页采用分组卡片结构，新增 API Key / 网关状态标签、Base URL 一键恢复默认与触感反馈开关。
+- **完整版 Liquid Glass 液态玻璃（兼顾高刷性能）**：
+  - 接入 [Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)（`backdrop:2.0.1` + `shapes:1.2.1`），实现双层 `rememberLayerBackdrop` 光学折射、高斯模糊、色散高光、AGSL 追光按压反馈与可拖拽液态玻璃开关。
+  - 全覆盖侧边抽屉、悬浮顶栏、悬浮输入卡、胶囊开关、消息气泡、思考块、搜索卡、TTS/搜索控制条、弹层、Snackbar 与设置页卡片。
+  - 静态缓存极光壁纸零闲置重绘，并在「设置 → 外观与体验」提供 **完整折射 / 轻量性能 / 关闭** 三档性能开关。
+- **全能富文本与代码图渲染引擎**：
+  - **数学与化学公式**：全面支持 `$$...$$`、`\[...\]`、`\begin{align|equation|matrix|cases}` 块级公式以及 `$...$`、`\(...\)` 行内公式（含复杂行内公式自动切换 KaTeX+mhchem 排版，流式期实时 Unicode 降级防闪烁，支持复制源码与全屏双指缩放）。
+  - **全类型代码图**：原生支持 **Mermaid v11**（流程图/时序图/类图/状态图/甘特图/思维导图等）、**SVG 矢量图**（含围栏外独立 `<svg>`）、**HTML/CSS/JS 沙盒互动预览**、**Chart.js 数据图表**、**Graphviz DOT 关系图** 以及 **ASCII / 目录树无折行结构图**，均支持一键切换「渲染图 / 源码」与全屏放大查看。
+  - **完整 GFM 与语法高亮**：内置 20+ 语言语法高亮（含 Diff 增删着色）、GitHub Callouts（`> [!NOTE|TIP|IMPORTANT|WARNING|CAUTION]`）、任务清单（`- [x]` / `- [ ]`）、可点击放大图片、对齐表格，且 DeepSeek 深度思考块内也完整支持 Markdown 与公式渲染。
+- **稳定性与 Bug 修复**：
+  - 修复行内数学 `$`/`\` 扫描漏检导致公式不渲染的问题；
+  - 修复语音录制组件离开页面时未释放 `AudioRecord` 的泄漏隐患，并加固 `getMinBufferSize` 异常保护；
+  - 修复删除正在流式生成的会话时结束回调可能复活已删会话的竞态 Bug；
+  - 加固消息列表 `LazyColumn` 复合键防重崩溃，并清洗 TTS 朗读中的 LaTeX 公式命令。
 
-## 功能
+## v2.0.0 核心能力回顾
 
-### 承自官方 Chatbot 指南 / chat-demo
+- **全新图标重绘**：深海极夜渐变 + 跃动鲸尾极光脉冲图腾，适配 Android 自适应图标与 Monochrome 单色图标。
+- **WebSocket 24kHz PCM 流式朗读**：直连官方 `wss://api.deepseek.com/v1/tools/tts` 实时写入 `AudioTrack`（首音零等待，失败自动降级 HTTP PCM），支持全局悬浮朗读条、暂停/继续与 `0.75x–2.0x` 倍速切换。
+- **上下文硬盘缓存极致优化**：冻结会话创建日期前缀消除分钟级抖动、Chat 模式剥离冗余 `reasoning_content`、Anthropic 注入 `cache_control: ephemeral` 缓存断点，并提供实时缓存命中率与节省金额看板。
+- **7 大效率功能**：提示词角色预设工坊、悬浮朗读控制条、消息收藏夹、会话内关键词搜索跳转、Markdown 一键导出/分享、缓存命中率看板、`/` 快捷指令与会话分叉。
+
+## 功能总览
 
 | 能力 | 实现方式 |
 | --- | --- |
-| 联网搜索 | `deepseek_web_search` 工具，搜索卡片展示查询词、站点图标、标题与摘要，可展开跳转 |
-| 深度思考搜索 | 思考模式 + 搜索工具，思考过程采用可折叠引导线视图并显示用时 |
-| 阅读链接 | `deepseek_read_url` 工具，展示抓取到的网页标题与地址 |
-| 文件输入 | Files API 上传（PDF / Office / 图片 / 文本），对话中以 `file_id` 引用 |
-| 内容安全 | `safety_check: high`，拒答时丢弃已下发的正文并展示拦截提示 |
-| 会话标题 | `title: {enabled: true}` 自动生成，支持手动重命名 |
-| 编辑消息 / 重新生成 / 继续生成 | 编辑后截断重发；重新生成保留历史版本可左右切换；截断或手动停止后可续写 |
-| 朗读回答 / 语音输入 | `/v1/tools/tts` 流式音频落盘播放；按住录音 16kHz WAV 上传 `/v1/tools/asr`（自动过滤误触短按） |
-| 引用角标 | 解析 `citations_delta` / `url_citation`，以编号来源胶囊形式展示并跳转 |
-| Markdown | 自研解析器：标题、列表、引用块、宽表格（支持行内样式与横向滚动）、代码块（语言标签 + 复制反馈）、链接、行内样式 |
-| 浅色 / 深色主题 | 双套手调中性色板 + 品牌蓝（支持可选开启 Android 12+ 动态取色） |
-| 历史导出 / 导入 | 全量会话 JSON 导出与导入（SAF，本应用格式） |
-| 多会话管理 | 新建、切换、按时间分组、长按管理、重命名、置顶、删除二次确认、搜索 |
-
-### 客户端增强能力
-
-1. **模型自动获取与自由选择**：启动后调用 `GET /models`，读取展示名、上下文窗口、输出上限、输入模态、支持的 `effort` 档位与默认档位；失败时回退到内置列表，可手动刷新。
-2. **思考强度可调**：`none / low / high / max` 分段切换，按协议自动映射为 `thinking` + `reasoning_effort`（Chat）、`reasoning.effort`（Responses）、`thinking` + `output_config.effort`（Anthropic）。
-3. **动态用量与余额**：`GET /user/balance` 实时余额（总额 / 赠金 / 充值）；每条回答显示输入/输出 Token、首字延迟（TTFT）、生成速度（tok/s）、按官方价目估算的费用；本地累计今日/全部请求、Token 与花费。
-4. **三种接口格式可选**：Chat Completions、Responses、Anthropic Messages 一键切换，流式解析器各自独立实现，统一映射为同一套内容块模型。
-5. **丝滑的阅读与流式跟随**：支持 760dp 最佳阅读宽度自适应（平板/横屏友好）、思考与正文全阶段精准贴底跟随、第一像素手势让出控制权与无障碍 40dp+ 触控热区。
+| 联网搜索 & 深度搜索 | `deepseek_web_search` 工具，展示查询词、来源卡片与编号引用胶囊 |
+| 阅读链接 & 文件解析 | `deepseek_read_url` 与 Files API（PDF / Office / 图片 / 文本） |
+| 数学公式与代码图 | KaTeX + mhchem、Mermaid v11、SVG、HTML 互动沙盒、Chart.js、Graphviz DOT、ASCII 结构图与全屏缩放 |
+| 代码与 Markdown | 20+ 语言语法高亮、Diff 着色、Callouts、任务清单、对齐表格、图片缩放、深度思考块富文本 |
+| 语音交互（TTS / ASR） | WebSocket 24kHz PCM 流式朗读（倍速/暂停）+ 16kHz WAV 语音识别 |
+| 液态玻璃与主题 | 完整折射 / 轻量性能 / 关闭三档调节 + 浅/深色手调色板 + Android 12+ 动态取色 |
+| 多协议 & 网关兼容 | Chat Completions / Responses / Anthropic Messages 一键切换，原生兼容 OpenCode v2 / Go / Zen |
+| 会话与数据管理 | 时间分组抽屉、置顶/重命名/搜索、消息收藏、分叉、编辑重发、续写、Markdown/JSON 导出与导入 |
 
 ## 网关兼容：OpenCode v2 / Go / Zen
 
-Base URL 填 `opencode.ai` 系地址时自动切换端点形态与会话头，三种协议都能用：
+Base URL 填 `opencode.ai` 系地址时自动切换端点形态与会话头，三种协议均可用：
 
 | 网关 | Base URL | Chat | Responses | Anthropic |
 | --- | --- | --- | --- | --- |
 | OpenCode v2（Console，按量） | `https://opencode.ai/inference` | `/openai/v1/chat/completions` | `/openai/v1/responses` | `/anthropic/v1/messages` |
 | OpenCode Go（订阅） | `https://opencode.ai/inference/go` | 同上 | 同上 | 同上 |
-| Zen（旧版） | `https://opencode.ai/zen/v1` | `/chat/completions` | `/responses` | `/messages` |
-| Go（旧版） | `https://opencode.ai/zen/go/v1` | `/chat/completions` | `/responses` | `/messages` |
-
-- 粘完整端点（例如 `.../v1/chat/completions`）也可以，会自动剥回根地址再按协议拼路径。
-- **`x-opencode-session`**：自 2026-09 起 Go 要求每个请求带稳定的会话 id，缺失直接 `400 MissingSessionID`；Console 也用它做路由与提示词缓存。本应用默认按 Base URL 自动识别，值由会话 id 派生（`ses_` + 稳定短串），切会话即换 id；设置页可改为「始终发送」（给自建反代补头）或「关闭」。
-- 请求同时带 `User-Agent: deepseek-hot/1.3.0 (Android)`，而不是 `okhttp/4.12.0` 这类通用库名——OpenCode 明确要求客户端自报身份。
-- 鉴权沿用协议规则：Anthropic 走 `x-api-key`，OpenAI 系走 `Authorization: Bearer`。
-- 这些网关没有 Files / 余额 / 语音接口，对应入口会自动隐藏或给出明确提示；余额面板改为引导去 Console 查看。
-
-## 依赖升级工作流
-
-`.github/workflows/bump-dependencies.yml`：**只手动触发**（`workflow_dispatch`，没有 schedule，也不随 push 运行），一键把全部组件拉到各自最新稳定版：
-
-- Gradle wrapper（查 `services.gradle.org/versions/current`）
-- `gradle/libs.versions.toml` 里的每一项：AGP、Kotlin、Compose BOM、AndroidX、DataStore、kotlinx、OkHttp、Coil、JUnit、Robolectric
-- 工作流自身用到的 GitHub Actions（查 releases/latest）
-
-策略与安全边界：
-
-- 只接受稳定版，`alpha / beta / rc / dev / preview / snapshot / eap` 一律不选。
-- 升级后立即跑 `:app:assembleDebug` 与 `:app:testDebugUnitTest`；**即使编译失败也照样开 PR**，失败日志尾部会贴进 PR 正文，标记为需要人工跟进，不会丢掉已算出的结果。
-- 变更走 PR（分支 `chore/bump-dependencies`），不直接推 main；PR 已存在时原地更新。
-- 输入项：`dry_run`（只看差异）、`include_gradle`、`include_actions`、`only`（如 `okhttp,coil`）。
-
-本地等价操作：
-
-```bash
-python3 scripts/bump-deps.py --dry-run   # 只看会升什么
-python3 scripts/bump-deps.py             # 直接改文件，然后自己编译验证
-```
+| Zen / Go（旧版） | `https://opencode.ai/zen/v1` | `/chat/completions` | `/responses` | `/messages` |
 
 ## 构建
 
 ```bash
-# 需要 JDK 17+、Android SDK（platform 35 / build-tools 35）
+# 需要 JDK 21、Android SDK（compileSdk 37）
 export ANDROID_HOME=/path/to/android-sdk
 echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-./gradlew :app:assembleDebug
-# 产物：app/build/outputs/apk/debug/app-debug.apk
-
-# 单元测试（Markdown 解析器 6 个 + 网关识别 8 个，另有 3 个截图用例默认 @Ignore）
-./gradlew :app:testDebugUnitTest
-
-# 重新生成界面截图：移除 ScreenshotTest 上的 @Ignore 后运行，输出到 app/build/screenshots/
-./gradlew :app:testDebugUnitTest --tests "*ScreenshotTest*"
+# 单元测试 + Lint + 编译 Debug / Release APK
+./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
 ```
 
 安装：
 
 ```bash
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/release/app-release.apk
 ```
 
 首次启动进入「设置」填入 DeepSeek API Key（`sk-...`），点击「保存并测试」即可拉取模型列表与余额。
@@ -121,76 +86,49 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ```
 app/src/main/java/com/hotsteel/deepseekhot/
-├── AppViewModel.kt          会话/流式状态/模型/余额/统计/附件的唯一状态源
+├── AppViewModel.kt          会话/流式状态/模型/余额/统计/附件/TTS 状态源
 ├── MainActivity.kt          edge-to-edge + Compose 入口
 ├── data/
-│   ├── Models.kt            @Serializable 数据模型（Block / Reply / ChatMsg / Conversation / Usage）
+│   ├── Models.kt            @Serializable 数据模型与 AppSettings（含液态玻璃档位）
 │   └── Repositories.kt      DataStore 设置、会话 JSON 文件、本地统计
 ├── net/
-│   ├── ApiClient.kt         OkHttp、SSE 解析、/models、/user/balance、/files、TTS、ASR
+│   ├── ApiClient.kt         OkHttp、SSE、WebSocket TTS、ASR、/models、/user/balance、/files
 │   ├── Gateway.kt           网关识别（OpenCode v2/Go/Zen）、端点映射、x-opencode-session
-│   └── ChatEngine.kt        三种协议的请求构建与流式事件解析（统一 StreamEvent）
-├── audio/Audio.kt           WAV 录音（AudioRecord）与 TTS 播放（MediaPlayer）
+│   └── ChatEngine.kt        三协议请求构建、缓存优化与统一流式事件解析
+├── audio/Audio.kt           WAV 录音（AudioRecord）与 24kHz PCM 流式 AudioTrack 播放
 ├── ui/
-│   ├── AppRoot.kt           分组抽屉、长按管理、页面转场、Snackbar
-│   ├── ChatScreen.kt        顶栏、消息列表、流式自动跟随滚动、回底按钮、会话菜单
-│   ├── Welcome.kt           可滚动居中空态、Key 引导横幅与示例提问
-│   ├── MessageItems.kt      用户/助手消息、思考引导线卡、搜索卡、引用胶囊、用量行、版本切换
-│   ├── Composer.kt          悬浮圆角输入卡、深度思考/联网胶囊、附件、按住录音、发送/停止按钮
-│   ├── Markdown.kt          Markdown 解析与渲染（代码块复制反馈、宽表格、引用块）
-│   ├── Sheets.kt            模型/协议/思考强度分段选择、余额与用量面板
-│   ├── SettingsScreen.kt    分组卡片设置页
-│   ├── AboutScreen.kt       关于页（版本、能力清单与作者信息）
-│   ├── Components.kt        纯色背景、品牌标识、胶囊开关、触控热区按钮、通用顶栏与确认弹窗
+│   ├── liquid/
+│   │   ├── LiquidPhysics.kt          Kyant0 交互高光 AGSL 着色器与阻尼弹簧拖拽物理
+│   │   └── LiquidGlassComponents.kt  双层 Backdrop、静态极光壁纸、三档性能模式与可拖拽玻璃开关
+│   ├── RichWebRenderer.kt   KaTeX+mhchem / Mermaid v11 / SVG / Chart.js / Graphviz / HTML 引擎
+│   ├── SyntaxHighlighter.kt 20+ 语言语法高亮与 LaTeX Unicode 降级美化器
+│   ├── Markdown.kt          完整 GFM + 块/行内公式 + 代码图 + Callouts + 任务列表 + 图片缩放
+│   ├── AppRoot.kt           双层 Backdrop 根容器、液态玻璃抽屉、转场与 Snackbar
+│   ├── ChatScreen.kt        液态玻璃顶栏、消息列表、流式跟随滚动、回底按钮与会话菜单
+│   ├── MessageItems.kt      液态玻璃气泡、富文本思考块、搜索卡、引用胶囊与用量统计
+│   ├── Composer.kt          液态玻璃悬浮输入卡、胶囊开关、`/` 指令、语音输入与附件
+│   ├── FeatureSheets.kt     悬浮朗读条、会话搜索条、角色预设工坊与收藏夹面板
+│   ├── Sheets.kt            模型/协议/思考强度面板、缓存命中率与余额统计看板
+│   ├── SettingsScreen.kt    液态玻璃分组设置页（含三档液态玻璃开关）
+│   ├── Welcome.kt           液态玻璃居中欢迎页与快捷示例卡片
+│   ├── AboutScreen.kt       关于页（v3.0.0 能力清单与作者信息）
 │   └── theme/Theme.kt       浅/深色中性色板、品牌蓝、字体与形状系统
-└── util/Format.kt           格式化、计费估算、剪贴板/链接/分享
+└── util/Format.kt           格式化、缓存节省计费估算、Markdown 导出与系统工具
 ```
 
-## API 映射
+## 与官方 Demo 的对比
 
-| 用途 | 端点 |
-| --- | --- |
-| Chat Completions | `POST {base}/chat/completions` |
-| Responses | `POST {base}/responses` |
-| Anthropic Messages | `POST {base}/anthropic/v1/messages` |
-| 模型列表 | `GET {base}/models` |
-| 余额 | `GET {base}/user/balance` |
-| 文件上传 | `POST {base}/files` 或 `POST {base}/anthropic/v1/files` |
-| 语音合成 | `POST {base}/v1/tools/tts` |
-| 语音识别 | `POST {base}/v1/tools/asr` |
-
-上表为 DeepSeek 官方的路径；OpenCode 网关按上节表格自动改写（`/chat/completions` → `/openai/v1/chat/completions` 等），`/models` 在 Console 形态下为 `{base}/v1/models`。
-
-鉴权：OpenAI 系用 `Authorization: Bearer`，Anthropic 系用 `x-api-key`（引用文件时附带 `anthropic-beta: files-api-2025-04-14`）。
-
-费用估算：Flash 输入 1/2 元、缓存命中 0.02/0.04 元、输出 4/8 元每百万 Token（空闲/高峰）；Pro 为 4.5/9、0.15/0.30、13.5/27。北京时间工作日 9:00–12:00、14:00–18:00 为高峰。
-
-## 已知限制
-
-- Markdown 渲染覆盖常用语法，LaTeX 与 Mermaid 保留原文展示，不做公式排版或图表绘制。
-- 历史轮次只回传正文，不回传历史思考与搜索结果（阅读链接的加密 `signature` 不回传）；这与官方 Demo 的策略一致，服务端会在需要时重新检索。
-- 会话标题仅在首轮请求开启，若模型未返回则用提问前 24 字兜底。
-- 导入仅支持本应用导出的 JSON 列表；DeepSeek 网页端导出的 ZIP 归档（manifest + 会话 + 图片）暂未支持。
-- 本应用与深度求索无隶属关系；API Key 仅保存在本机 DataStore，请勿在不可信设备上使用。
-
-## 与官方 Demo 的差异
-
-| 项目 | 本应用 | 官方 Demo |
+| 项目 | DeepSeek Hot v3.0.0 | 官方 chat-demo |
 | --- | --- | --- |
-| 接口 | 三种协议可切换 | 仅 Anthropic Messages |
-| 语音合成 | 整段 `/v1/tools/tts` 落盘播放 | 整段 + WebSocket 流式 |
-| 导入 | 本应用 JSON | 官方 ZIP 归档（含图片） |
-| 公式 / 图表 | LaTeX 原文展示、Mermaid 不绘制 | KaTeX 渲染、Mermaid 绘制 |
-| 界面语言 | 中文 | 中 / 英 |
+| 视觉交互 | 完整 AndroidLiquidGlass 液态玻璃（三档性能可调） | Web 极简风格 |
+| 接口协议 | Chat / Responses / Anthropic 三协议切换 + OpenCode 兼容 | 仅 Anthropic Messages |
+| 语音合成 | WebSocket 24kHz PCM 实时流式 + HTTP 降级 + 倍速/暂停 | 整段 + WebSocket 流式 |
+| 公式与图表 | KaTeX+mhchem、Mermaid、SVG、HTML、Chart.js、Graphviz、ASCII | KaTeX 渲染、Mermaid 绘制 |
+| 上下文缓存 | 自动冻结前缀 + 协议缓存断点 + 命中率/省钱看板 | 基础缓存 |
 
 ## 许可证
 
 本项目以 **AGPL-3.0-or-later**（GNU Affero General Public License v3.0 或更高版本）发布，全文见 [LICENSE](LICENSE)。
-
-- 你可以自由使用、修改、分发，包括商用；但如果修改后通过网络向用户提供服务，必须按 AGPL 第 13 条向这些用户提供对应的完整源码。
-- 分发二进制时必须附带许可证与源码获取方式。
-- 各源文件头部均带 `SPDX-License-Identifier: AGPL-3.0-or-later` 标记。
-- 选择的「or later」意味着你可以按 AGPL v3 或任何更新的 FSF 版本使用本项目。
 
 ## 作者
 

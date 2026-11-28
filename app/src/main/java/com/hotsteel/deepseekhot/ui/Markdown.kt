@@ -883,6 +883,7 @@ private fun MathFormulaCard(
                 maxHeightDp = 360,
                 allowFullscreen = true,
                 onLink = onLink,
+                modifier = Modifier.padding(end = 34.dp),
             )
         }
     }

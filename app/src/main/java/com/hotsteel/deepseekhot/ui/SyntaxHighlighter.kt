@@ -282,7 +282,7 @@ object MathFallbackFormatter {
     )
 
     private val complexLatexRegex = Regex(
-        """\\(frac|dfrac|tfrac|sqrt|sum|int|oint|prod|lim|begin|matrix|pmatrix|bmatrix|cases|vec|hat|bar|tilde|overline|underline|mathbb|mathcal|mathrm|text|ce|binom|stackrel|overset|underset)\b|[_\^]\{[^}]+\}"""
+        """\\[A-Za-z]+|[_\^]\{[^}]+\}|[_\^][A-Za-z0-9]"""
     )
 
     fun isComplexLatex(text: String): Boolean = complexLatexRegex.containsMatchIn(text)
@@ -294,9 +294,14 @@ object MathFallbackFormatter {
         repeat(3) {
             s = fracRe.replace(s) { "(${it.groupValues[1]})/(${it.groupValues[2]})" }
         }
-        // Convert \text{...} / \mathrm{...} / \mathbf{...}
-        s = Regex("""\\(?:text|mathrm|mathbf|mathit|mathbb|mathcal|operatorname)\{([^{}]+)\}""")
-            .replace(s) { it.groupValues[1] }
+        // Convert \boxed{...}, \text{...}, \mathrm{...}, \mathbf{...}
+        repeat(2) {
+            s = Regex("""\\(?:boxed|text|mathrm|mathbf|mathit|mathbb|mathcal|operatorname|boldsymbol|bm)\{([^{}]+)\}""")
+                .replace(s) { it.groupValues[1] }
+        }
+        // Strip leading backslash from standard math operator names (\tan, \sin, \cos, \log, etc.)
+        s = Regex("""\\(arcsin|arccos|arctan|sinh|cosh|tanh|sin|cos|tan|cot|sec|csc|log|ln|lg|exp|lim|max|min|sup|inf|det|gcd|deg|arg|bmod|pmod|mod)(?![A-Za-z])""")
+            .replace(s) { "${it.groupValues[1]} " }
         for ((cmd, sym) in symbols) {
             s = s.replace(Regex("${Regex.escape(cmd)}(?![A-Za-z])"), sym)
         }

@@ -139,16 +139,51 @@ private fun buildRichHtml(
                 #root { display: flex; justify-content: center; align-items: center; padding: 10px 8px; }
                 .fallback { font-family: monospace; font-size: 14px; white-space: pre-wrap; text-align: center; }
             </style></head><body><div id="root"></div><script>
-            const tex = `${escapeJsTemplate(payload)}`;
+            const rawTex = `${escapeJsTemplate(payload)}`;
             const fallback = `${escapeJsTemplate(MathFallbackFormatter.toUnicode(payload))}`;
+            function sanitizeTex(s) {
+                let t = s.replace(/\r\n/g, '\n').trim();
+                t = t.replace(/\\bm\{/g, '\\boldsymbol{').replace(/\\mathbbm\{/g, '\\mathbb{');
+                // Balance unmatched curly braces from occasional LLM typos
+                let open = 0, close = 0;
+                for (let i = 0; i < t.length; i++) {
+                    if (t[i] === '\\' && i + 1 < t.length) { i++; continue; }
+                    if (t[i] === '{') open++;
+                    else if (t[i] === '}') close++;
+                }
+                if (open > close) t += '}'.repeat(open - close);
+                else if (close > open) {
+                    let extra = close - open;
+                    while (extra > 0 && t.endsWith('}')) { t = t.slice(0, -1); extra--; }
+                }
+                return t;
+            }
             function render() {
                 const root = document.getElementById('root');
+                const opts = { displayMode: true, throwOnError: true, strict: false, trust: true, errorColor: '$textHex' };
                 if (window.katex) {
+                    const cleaned = sanitizeTex(rawTex);
                     try {
-                        katex.render(tex, root, { displayMode: true, throwOnError: false, strict: false, trust: true });
-                    } catch (e) {
-                        root.innerHTML = '<div class="fallback"></div>';
-                        root.firstChild.textContent = fallback;
+                        katex.render(cleaned, root, opts);
+                    } catch (e1) {
+                        try {
+                            // Retry with newlines flattened and optional \boxed wrapper rendered via CSS border
+                            let flat = cleaned.replace(/\n+/g, ' ');
+                            let isBoxed = false;
+                            if (flat.startsWith('\\boxed{') && flat.endsWith('}')) {
+                                flat = flat.slice(7, -1);
+                                isBoxed = true;
+                            }
+                            katex.render(flat, root, { ...opts, throwOnError: false });
+                            if (isBoxed) {
+                                root.style.border = '1.5px solid $accentHex';
+                                root.style.borderRadius = '10px';
+                                root.style.margin = '4px 8px';
+                            }
+                        } catch (e2) {
+                            root.innerHTML = '<div class="fallback"></div>';
+                            root.firstChild.textContent = fallback;
+                        }
                     }
                 } else {
                     root.innerHTML = '<div class="fallback"></div>';
@@ -187,7 +222,8 @@ private fun buildRichHtml(
                             ],
                             throwOnError: false,
                             strict: false,
-                            trust: true
+                            trust: true,
+                            errorColor: '$textHex'
                         });
                     } catch (e) {}
                 }
@@ -477,7 +513,7 @@ fun RichWebCanvas(
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun FullscreenRichDialog(
+internal fun FullscreenRichDialog(
     title: String,
     html: String,
     onDismiss: () -> Unit,
